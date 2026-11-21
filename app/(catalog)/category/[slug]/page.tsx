@@ -27,13 +27,13 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
   if (!category) notFound();
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-16">
-      <Link href="/" className="text-sm underline">
+    <main className="max-w-page mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
+      <Link href="/" className="text-body-sm text-primary underline">
         &larr; Home
       </Link>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{category.name}</h1>
-        <p className="text-foreground/70">{category.description}</p>
+        <h1 className="text-h1">{category.name}</h1>
+        <p className="text-muted-foreground">{category.description}</p>
       </header>
       <ProductGrid products={products} />
     </main>

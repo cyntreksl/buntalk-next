@@ -14,12 +14,12 @@ export const metadata: Metadata = {
 async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
   const { q } = await searchParams;
   const query = typeof q === "string" ? q : "";
-  if (!query.trim()) return <p className="text-foreground/70">Type something to search.</p>;
+  if (!query.trim()) return <p className="text-muted-foreground">Type something to search.</p>;
 
   const products = await searchProducts(query);
   return (
     <section className="flex flex-col gap-4">
-      <p className="text-foreground/70">
+      <p className="text-muted-foreground">
         {products.length} result{products.length === 1 ? "" : "s"} for &ldquo;{query}&rdquo;
       </p>
       <ProductGrid products={products} />
@@ -29,20 +29,23 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
 
 export default function SearchPage({ searchParams }: PageProps<"/search">) {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">Search</h1>
+    <main className="max-w-page mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
+      <h1 className="text-h1">Search</h1>
       <form action="/search" className="flex gap-2">
         <input
           name="q"
           type="search"
           placeholder="Search products"
-          className="border-foreground/20 flex-1 rounded-md border bg-transparent px-3 py-2"
+          className="border-border-strong bg-surface flex-1 rounded-sm border px-3 py-2"
         />
-        <button type="submit" className="bg-foreground text-background rounded-md px-4 py-2">
+        <button
+          type="submit"
+          className="bg-primary text-primary-foreground hover:bg-primary-hover rounded-md px-5 py-2 font-bold"
+        >
           Search
         </button>
       </form>
-      <Suspense fallback={<p className="text-foreground/70">Searching…</p>}>
+      <Suspense fallback={<p className="text-muted-foreground">Searching…</p>}>
         <Results searchParams={searchParams} />
       </Suspense>
     </main>

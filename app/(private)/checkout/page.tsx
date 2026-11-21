@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Checkout" };
 async function CheckoutCustomer() {
   const session = await getSession();
   return (
-    <p className="text-foreground/70">
+    <p className="text-muted-foreground">
       {session ? "Checking out as a signed-in customer." : "Checking out as a guest."}
     </p>
   );
@@ -19,9 +19,9 @@ async function CheckoutCustomer() {
 
 export default function CheckoutPage() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
-      <Suspense fallback={<p className="text-foreground/70">Loading…</p>}>
+    <main className="max-w-content mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
+      <h1 className="text-h1">Checkout</h1>
+      <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
         <CheckoutCustomer />
       </Suspense>
       <CartContents />

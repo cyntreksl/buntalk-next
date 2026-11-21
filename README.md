@@ -60,6 +60,7 @@ app/              Routes, layouts and route handlers (App Router)
 components/
   ui/             Generic, reusable UI primitives (buttons, inputs, …)
   layout/         Site chrome: header, footer, navigation
+  brand/          Logo component
 features/         Feature modules, one folder per domain (cart, catalog, checkout, …)
   cart/           Cart store (Zustand) and cart components
   catalog/        Product cards and grids
@@ -67,12 +68,17 @@ lib/
   erp/            ERP API client and cached catalog reads (server only)
   auth/           Authentication and session handling
   utils/          Small shared helpers
+  brand.ts        Brand name, tagline, logo paths, manifest colours
   cache-tags.ts   Cache tag names used for on-demand revalidation
   env.ts          Public env (validated)
   env.server.ts   Server-only env (validated)
   query-client.ts TanStack Query client factory
-styles/           Global CSS and Tailwind setup
-public/           Static assets served from /
+styles/
+  tokens.css      Design tokens: colours, type, spacing, radius, shadows, breakpoints
+  globals.css     Tailwind import and base element styles
+public/
+  brand/          Logo files (full with tagline, compact)
+  icons/          PWA icons (192, 512, maskable)
 ```
 
 ### Conventions
@@ -182,6 +188,97 @@ Cart, checkout and account pages are never cached for other users:
 - **Prettier** includes the Tailwind class-sorting plugin. Settings are in `.prettierrc.json`.
 - **Husky pre-commit hook** runs `lint-staged` (ESLint `--fix` and Prettier on staged files) and then `npm run typecheck`. A commit is blocked if either fails.
 
-## Styling
+## Design system
 
-Tailwind CSS v4 is set up in `styles/globals.css`. Design tokens, typography and brand styles are defined in BUN-152.
+Styling uses Tailwind CSS v4. All design tokens live in **`styles/tokens.css`**, and every token becomes a Tailwind utility. Open **[/style-guide](http://localhost:3000/style-guide)** for a live visual reference of every colour, type size, spacing step, radius, shadow and breakpoint, plus the logos.
+
+### Rules
+
+- **No hard-coded colours.** Use semantic colour tokens (`bg-primary`, `text-heading`, `border-border`, …). ESLint fails on hex, `rgb()`, `hsl()` and `oklch()` colours in `app/`, `components/` and `features/`.
+- Tailwind's default palette, type sizes, radii, shadows and breakpoints are **removed**. Classes like `bg-blue-500`, `text-2xl` or `rounded-3xl` don't exist, so only the Buntalk tokens can be used.
+- Use **semantic tokens** in components. Use the raw palette (`orange-*`, `red-*`, `brown-*`, `sand-*`) only for brand illustrations or when no semantic token fits.
+- To change a colour, size or spacing value, edit `styles/tokens.css`. Every page and the style guide update with it.
+
+### Colours
+
+Brand colours come from the logo:
+
+| Colour     | Hex       | Source             | Token        |
+| ---------- | --------- | ------------------ | ------------ |
+| Orange     | `#F38121` | Logo frame         | `orange-500` |
+| Red-orange | `#EE5023` | "Bun"              | `red-500`    |
+| Brown      | `#794224` | "Talk" and tagline | `brown-700`  |
+
+Each colour has a full 50–950 scale, plus a warm neutral `sand-*` scale. Components use semantic tokens, which switch automatically for dark mode (follows the system setting):
+
+| Token                                    | Use                                         |
+| ---------------------------------------- | ------------------------------------------- |
+| `background`, `surface`, `surface-muted` | Page, cards/inputs, subtle sections         |
+| `foreground`, `muted-foreground`         | Body text, secondary text                   |
+| `heading`                                | Headings and brand text (brand brown)       |
+| `primary` / `primary-foreground`         | Main buttons and links                      |
+| `secondary` / `secondary-foreground`     | Secondary buttons                           |
+| `accent`, `accent-soft`                  | Brand orange highlights, badges, pills      |
+| `border`, `border-strong`, `ring`        | Borders, input borders, focus outline       |
+| `success`, `warning`, `danger`, `info`   | Status text, each with a `-soft` background |
+
+Brand orange is too light for text on white (2.6:1), so it's used for backgrounds and decoration only. Text and button pairs meet WCAG AA:
+
+- White on `primary`: 4.9:1
+- `heading` on white: 8:1
+- Body text: 17.8:1
+
+### Typography
+
+| Font              | Use                                                   | Class          |
+| ----------------- | ----------------------------------------------------- | -------------- |
+| Baloo 2           | Headings (rounded, matches the logo lettering)        | `font-display` |
+| Nunito            | Body text (default)                                   | `font-sans`    |
+| Noto Sans Sinhala | Sinhala text, and the fallback for Sinhala characters | `font-sinhala` |
+
+Fonts are loaded with `next/font` in `app/layout.tsx`.
+
+The type scale is `text-display`, `text-h1`–`text-h4`, `text-body-lg`, `text-body`, `text-body-sm` and `text-caption`:
+
+- Display and heading sizes scale smoothly from mobile to desktop.
+- `h1`–`h4` elements get the display font and heading colour automatically.
+
+### Spacing, radius, shadows, layout
+
+- **Spacing:** a 4px unit (`p-1` = 4px, `p-4` = 16px, `gap-6` = 24px).
+- **Content widths:** `max-w-page` (1152px), `max-w-content` (768px) and `max-w-prose` (640px).
+- **Radius:**
+  - `rounded-sm` (6px): inputs
+  - `rounded-md` (10px): buttons
+  - `rounded-lg` (16px): cards
+  - `rounded-xl` (24px): large panels
+  - `rounded-full`: pills
+  - `rounded-brand`: the logo's frame shape
+- **Shadows:** `shadow-xs` to `shadow-lg`, with a warm tint.
+
+### Breakpoints
+
+Layouts are mobile first: classes without a prefix apply to phones.
+
+| Prefix | From   | Device       |
+| ------ | ------ | ------------ |
+| `sm:`  | 640px  | Large phones |
+| `md:`  | 768px  | Tablets      |
+| `lg:`  | 1024px | Desktop      |
+| `xl:`  | 1280px | Wide desktop |
+
+### Brand assets
+
+| Asset                          | File                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| Full logo with Sinhala tagline | `public/brand/buntalk-logo.png`                            |
+| Compact logo (header)          | `public/brand/buntalk-logo-compact.png`                    |
+| Favicon / browser icon         | `app/icon.png`                                             |
+| Apple touch icon               | `app/apple-icon.png`                                       |
+| Installed-app icons            | `public/icons/` (192, 512, maskable), in `app/manifest.ts` |
+| Social share image             | `app/opengraph-image.png`                                  |
+
+- In code, use `<Logo variant="full" | "compact" />` from `components/brand/Logo.tsx`.
+- Brand values that CSS can't provide (manifest colours, tagline, logo sizes) are in `lib/brand.ts`. They must match `tokens.css`.
+
+All logo and icon files are made from the supplied PNG logo. A vector (SVG) version from the designer would give sharper icons at small sizes. When it's available, drop it into `public/brand/` and regenerate the icons.

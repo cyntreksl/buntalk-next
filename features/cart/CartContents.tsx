@@ -19,8 +19,8 @@ export function CartContents() {
   const items = useCartStore((state) => state.items);
   const removeItem = useCartStore((state) => state.removeItem);
 
-  if (!isClient) return <p className="text-foreground/70">Loading cart…</p>;
-  if (items.length === 0) return <p className="text-foreground/70">Your cart is empty.</p>;
+  if (!isClient) return <p className="text-muted-foreground">Loading cart…</p>;
+  if (items.length === 0) return <p className="text-muted-foreground">Your cart is empty.</p>;
 
   // Display total only. The real total is recalculated from the ERP at checkout.
   const currency = "LKR";
@@ -39,7 +39,7 @@ export function CartContents() {
               <button
                 type="button"
                 onClick={() => removeItem(item.sku)}
-                className="text-sm underline"
+                className="text-body-sm text-primary underline"
               >
                 Remove
               </button>
@@ -47,7 +47,7 @@ export function CartContents() {
           </li>
         ))}
       </ul>
-      <p className="font-medium">Total: {formatPrice(total, currency)}</p>
+      <p className="text-body-lg font-bold">Total: {formatPrice(total, currency)}</p>
     </div>
   );
 }

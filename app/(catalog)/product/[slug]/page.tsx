@@ -31,17 +31,19 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
   if (!product) notFound();
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16">
+    <main className="max-w-content mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
       <Link
         href={`/category/${product.categorySlug}`}
         prefetch={true}
-        className="text-sm underline"
+        className="text-body-sm text-primary underline"
       >
         &larr; Back to category
       </Link>
-      <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
-      <p className="text-xl">{formatPrice(product.price, product.currency)}</p>
-      <p className="text-foreground/70">{product.description}</p>
+      <h1 className="text-h1">{product.name}</h1>
+      <p className="font-display text-h2 text-primary font-bold">
+        {formatPrice(product.price, product.currency)}
+      </p>
+      <p className="text-muted-foreground">{product.description}</p>
       <div>
         <AddToCartButton
           item={{ sku: product.slug, name: product.name, unitPrice: product.price }}
