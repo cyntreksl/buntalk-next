@@ -1,5 +1,5 @@
 import { PageShell } from "@/components/layout/PageShell";
-import { SiteFooter } from "@/components/layout/SiteFooter";
+import { SiteFooter } from "@/components/layout/footer/SiteFooter";
 import { SiteHeader } from "@/components/layout/header/SiteHeader";
 
 /** Main storefront: full header with navigation, and the full footer. */

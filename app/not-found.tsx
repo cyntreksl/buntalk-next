@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageShell } from "@/components/layout/PageShell";
-import { SiteFooter } from "@/components/layout/SiteFooter";
+import { SiteFooter } from "@/components/layout/footer/SiteFooter";
 import { SiteHeader } from "@/components/layout/header/SiteHeader";
 import { buttonClasses } from "@/components/ui";
 

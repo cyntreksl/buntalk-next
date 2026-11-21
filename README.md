@@ -57,6 +57,7 @@ app/              Routes, layouts and route handlers (App Router)
   (site)/         Pages with the full site header and footer
     (catalog)/    Static + ISR pages: home, category/[slug], product/[slug]
     (private)/    Per-user pages, never cached: cart, account/*
+    (content)/    Policy, help, about, contact and outlet pages
     search/       Search results (dynamic)
     style-guide/  Design system and component reference
   (checkout)/     Checkout, with the minimal checkout header
@@ -66,6 +67,7 @@ components/
   ui/             Shared UI component library (see "UI components" below)
   layout/         Page shell, footer, Container, PageHeader
     header/       Site header: mega-menu, mobile drawer, search, cart, account menu
+    footer/       Site footer: link groups, contact, newsletter slot, payments
     templates/    Page templates (see "Layout and page templates" below)
   brand/          Logo component
 features/         Feature modules, one folder per domain (cart, catalog, checkout, …)
@@ -76,6 +78,8 @@ lib/
   auth/           Authentication and session handling
   utils/          Small shared helpers
   brand.ts        Brand name, tagline, logo paths, manifest colours
+  site-config.ts  Business details: contact, social, payments, outlets
+  content-pages.ts Footer page paths and titles, old-site redirects
   cache-tags.ts   Cache tag names used for on-demand revalidation
   env.ts          Public env (validated)
   env.server.ts   Server-only env (validated)
@@ -414,3 +418,55 @@ Shared pieces:
 - **Mobile drawer:** the shared `Drawer` (native `<dialog>`). Focus moves in and Tab stays inside. Esc or the × button closes it, and focus returns to the ☰ button. It also closes when you follow a link.
 - **Cart link:** has a spoken label such as "Cart, 3 items".
 - **Current page:** marked with `aria-current="page"`.
+
+## Site footer
+
+`components/layout/footer/SiteFooter.tsx` is shown on every page in the `(site)` group. Checkout has a minimal footer that still links every policy.
+
+| Block        | Contents                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Brand        | Logo and Sinhala tagline                                                                                   |
+| Get in touch | Address, phone, WhatsApp, email, opening hours, social links, plus "Contact us" and "Find an outlet" links |
+| Newsletter   | Sign-up slot, disabled until a mailing-list service is connected                                           |
+| Link groups  | **Shop** (ERP categories), **Customer help**, **Company**, **Policies**                                    |
+| Bottom row   | Payment method badges and the copyright line ("© 2023 – {current year} Buntalk (Private) Limited")         |
+
+- **Responsive:**
+  - From desktop (`lg`) up, the four link groups are columns.
+  - On phones and tablets they collapse into accordions (native `<details>`, so they work with the keyboard and without JavaScript).
+  - The policy links are also shown as always-visible quick links there.
+- **Shop links** come from the ERP categories, like the header.
+
+### Business details: `lib/site-config.ts`
+
+All contact details, social links, payment methods and outlets live in this one file. **Empty values are hidden.** The footer, contact page and outlet page never show made-up details.
+
+The values were checked against the old site (buntalk.lk) on 22 Nov 2026:
+
+| Detail                  | Status                                                                      |
+| ----------------------- | --------------------------------------------------------------------------- |
+| Legal name, address     | Filled in from the old site                                                 |
+| Phone                   | **Needed.** The old site shows a placeholder (`+94 123 456 7890`)           |
+| Email                   | **Needed.** Hidden by Cloudflare's email protection on the old site         |
+| WhatsApp, opening hours | **Needed.** Not on the old site                                             |
+| Social media links      | **Needed.** Not on the old site                                             |
+| Outlets                 | **Needed.** Not on the old site. `/outlets` shows "coming soon" until added |
+| Payment methods         | **Needed.** Decide with the payment gateway work (BUN-203)                  |
+
+### Information pages: `app/(site)/(content)/`
+
+| Page                    | Path                    | Old buntalk.lk address (redirects here)        |
+| ----------------------- | ----------------------- | ---------------------------------------------- |
+| Privacy policy          | `/privacy-policy`       | `/page/privacy-policy`                         |
+| Terms and conditions    | `/terms-and-conditions` | `/page/terms-conditions`, `/page/terms-of-use` |
+| Refund and returns      | `/refund-policy`        | `/page/refund-policy`                          |
+| Delivery policy         | `/delivery-policy`      | `/page/shipping-policy`                        |
+| Payment policy          | `/payment-policy`       | `/page/payment-policy`                         |
+| About us                | `/about`                | `/page/about-us`                               |
+| Help & customer service | `/help`                 | `/page/customer-service`                       |
+| Contact us              | `/contact`              | `/contact`                                     |
+| Outlet locator          | `/outlets`              | none                                           |
+
+- Paths and titles are defined once, in `lib/content-pages.ts`.
+- The old addresses redirect permanently (308), so existing links and search rankings carry over when the domain moves to this site.
+- **Policy, about and help text is still needed.** The old site's versions were template text, with unfilled placeholders such as "[insert email address]" and a "we do not ship outside the U.S." line, so they weren't copied. Until real text arrives, these pages show a "This page is being updated" notice.
