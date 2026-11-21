@@ -42,6 +42,9 @@ export const siteConfig = {
   /** Outlets for the outlet locator page. None were listed on the old site. TODO */
   outlets: [] as Outlet[],
 
+  /** Areas Buntalk delivers to, shown on the home page trust section, e.g. ["Galle", "Matara"]. TODO */
+  deliveryAreas: [] as string[],
+
   /** External links that exist today. */
   externalLinks: {
     tickets: "https://tickets.buntalk.lk/",

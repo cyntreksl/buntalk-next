@@ -1,5 +1,5 @@
 import "server-only";
-import type { Category, Product } from "./catalog";
+import type { Banner, Category, Product } from "./catalog";
 
 /**
  * Sample data used only for local development when ERP credentials are not
@@ -16,34 +16,51 @@ export const sampleCategories: Category[] = [
     name: "Sample Category B",
     description: "Another placeholder category for local development.",
   },
+  {
+    slug: "sample-category-c",
+    name: "Sample Category C",
+    description: "A third placeholder category for local development.",
+  },
 ];
 
+const product = (
+  n: number,
+  categorySlug: string,
+  price: number,
+  extra: Partial<Product> = {},
+): Product => ({
+  slug: `sample-product-${n}`,
+  name: `Sample Product ${n}`,
+  description: "Placeholder product used until the ERP is connected.",
+  price,
+  currency: "LKR",
+  categorySlug,
+  featured: false,
+  ...extra,
+});
+
 export const sampleProducts: Product[] = [
+  product(1, "sample-category-a", 450, { featured: true }),
+  product(2, "sample-category-a", 1200, { compareAtPrice: 1500 }),
+  product(3, "sample-category-b", 780, { featured: true }),
+  product(4, "sample-category-b", 320, { featured: true, compareAtPrice: 400 }),
+  product(5, "sample-category-c", 2650, { featured: true }),
+  product(6, "sample-category-c", 990, { compareAtPrice: 1100 }),
+];
+
+export const sampleBanners: Banner[] = [
   {
-    slug: "sample-product-1",
-    name: "Sample Product 1",
-    description: "Placeholder product used until the ERP is connected.",
-    price: 450,
-    currency: "LKR",
-    categorySlug: "sample-category-a",
-    featured: true,
+    id: "sample-hero",
+    title: "Sample hero banner",
+    subtitle: "Placeholder promotion from the sample catalog. Real banners come from the ERP.",
+    ctaLabel: "Shop the sample range",
+    href: "/category/sample-category-a",
   },
   {
-    slug: "sample-product-2",
-    name: "Sample Product 2",
-    description: "Placeholder product used until the ERP is connected.",
-    price: 1200,
-    currency: "LKR",
-    categorySlug: "sample-category-a",
-    featured: false,
-  },
-  {
-    slug: "sample-product-3",
-    name: "Sample Product 3",
-    description: "Placeholder product used until the ERP is connected.",
-    price: 780,
-    currency: "LKR",
-    categorySlug: "sample-category-b",
-    featured: true,
+    id: "sample-promo",
+    title: "Sample promotion",
+    subtitle: "A second placeholder banner.",
+    ctaLabel: "See offers",
+    href: "/#offers",
   },
 ];

@@ -28,6 +28,8 @@ type FullWidthSectionProps = {
   bleed?: boolean;
   className?: string;
   "aria-labelledby"?: string;
+  /** Marks the section as the page's newsletter section, so the footer hides its own copy. */
+  "data-newsletter-section"?: string;
 };
 
 const spacings = { sm: "py-6 md:py-8", md: "py-10 md:py-14", lg: "py-12 md:py-20" };

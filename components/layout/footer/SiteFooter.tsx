@@ -77,8 +77,9 @@ export async function SiteFooter() {
             </p>
           </div>
           <FooterContact />
-          <div className="md:col-span-2 lg:col-span-1">
-            <NewsletterSignup />
+          {/* Hidden when the page already has its own newsletter section (e.g. the home page). */}
+          <div className="md:col-span-2 lg:col-span-1 [body:has([data-newsletter-section])_&]:hidden">
+            <NewsletterSignup id="footer-newsletter" />
           </div>
         </div>
 

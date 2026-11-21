@@ -1,63 +1,71 @@
-import Link from "next/link";
+import { NewsletterSignup } from "@/components/layout/footer/NewsletterSignup";
 import { FullWidthSection, FullWidthTemplate } from "@/components/layout/templates";
-import { buttonClasses } from "@/components/ui";
 import { ProductGrid } from "@/features/catalog";
-import { brand } from "@/lib/brand";
-import { getCategories, getFeaturedProducts } from "@/lib/erp";
+import { CakeStudioCta } from "@/features/home/CakeStudioCta";
+import { FeaturedCategories } from "@/features/home/FeaturedCategories";
+import { HeroBanners } from "@/features/home/HeroBanners";
+import { SectionHeading } from "@/features/home/SectionHeading";
+import { TrustSection } from "@/features/home/TrustSection";
+import { getCategories, getFeaturedProducts, getHomeBanners, getOfferProducts } from "@/lib/erp";
 
-// Home: full-width template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
-// The full home page design is BUN-157; this sets up its structure.
+/**
+ * Home page: full-width template.
+ *
+ * Rendering: static + ISR (see README "Rendering strategy"). Every section
+ * reads live ERP data through the cached reads in lib/erp — banners,
+ * categories, offers, featured products — so the page is prerendered as plain
+ * HTML and refreshed every 15 minutes, or immediately when the ERP calls
+ * /api/revalidate with { "type": "home" }.
+ *
+ * Sections with no data are left out rather than shown empty.
+ */
 export default async function HomePage() {
-  const [categories, featured] = await Promise.all([getCategories(), getFeaturedProducts()]);
+  const [banners, categories, offers, featured] = await Promise.all([
+    getHomeBanners(),
+    getCategories(),
+    getOfferProducts(),
+    getFeaturedProducts(),
+  ]);
 
   return (
     <FullWidthTemplate>
-      <FullWidthSection tone="brand" spacing="lg" aria-labelledby="home-title">
-        <div className="flex max-w-prose flex-col gap-4">
-          <h1 id="home-title" className="text-display">
-            {brand.name}
-          </h1>
-          <p lang="si" className="font-sinhala text-h3 text-heading">
-            {brand.tagline}
-          </p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Link href="#categories" className={buttonClasses({ size: "lg" })}>
-              Shop by category
-            </Link>
-            <Link href="/search" className={buttonClasses({ size: "lg", variant: "outline" })}>
-              Search
-            </Link>
-          </div>
-        </div>
+      <HeroBanners banners={banners} />
+
+      {categories.length > 0 && (
+        <FullWidthSection aria-labelledby="categories">
+          <FeaturedCategories categories={categories} />
+        </FullWidthSection>
+      )}
+
+      {offers.length > 0 && (
+        <FullWidthSection tone="muted" aria-labelledby="offers">
+          <SectionHeading
+            id="offers"
+            title="Current offers"
+            description="Limited-time prices on Buntalk favourites."
+          />
+          <ProductGrid products={offers.slice(0, 8)} />
+        </FullWidthSection>
+      )}
+
+      {featured.length > 0 && (
+        <FullWidthSection aria-labelledby="featured">
+          <SectionHeading id="featured" title="Featured" />
+          <ProductGrid products={featured.slice(0, 8)} />
+        </FullWidthSection>
+      )}
+
+      <FullWidthSection spacing="sm" aria-labelledby="cake-studio">
+        <CakeStudioCta />
       </FullWidthSection>
 
-      <FullWidthSection aria-labelledby="categories">
-        <div className="flex flex-col gap-4">
-          <h2 id="categories" className="text-h2 scroll-mt-6">
-            Categories
-          </h2>
-          <ul className="flex flex-wrap gap-3">
-            {categories.map((category) => (
-              <li key={category.slug}>
-                <Link
-                  href={`/category/${category.slug}`}
-                  prefetch={true}
-                  className="border-accent bg-accent-soft text-accent-soft-foreground hover:bg-accent hover:text-accent-foreground inline-block rounded-full border px-4 py-1.5 font-semibold"
-                >
-                  {category.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+      <FullWidthSection aria-labelledby="why-buntalk">
+        <TrustSection />
       </FullWidthSection>
 
-      <FullWidthSection tone="muted" aria-labelledby="featured">
-        <div className="flex flex-col gap-4">
-          <h2 id="featured" className="text-h2">
-            Featured
-          </h2>
-          <ProductGrid products={featured} />
+      <FullWidthSection tone="brand" data-newsletter-section="">
+        <div className="mx-auto max-w-xl">
+          <NewsletterSignup id="home-newsletter" size="lg" />
         </div>
       </FullWidthSection>
     </FullWidthTemplate>

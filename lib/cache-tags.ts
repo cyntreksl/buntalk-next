@@ -8,6 +8,7 @@
 export const cacheTags = {
   catalog: "catalog",
   home: "home",
+  banners: "banners",
   categories: "categories",
   category: (slug: string) => `category:${slug}`,
   products: "products",

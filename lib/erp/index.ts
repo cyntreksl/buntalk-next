@@ -12,9 +12,12 @@ export {
   getCategories,
   getCategory,
   getFeaturedProducts,
+  getHomeBanners,
+  getOfferProducts,
   getProduct,
   getProductsByCategory,
   searchProducts,
+  type Banner,
   type Category,
   type Product,
 } from "./catalog";
