@@ -58,7 +58,7 @@ app/              Routes, layouts and route handlers (App Router)
   search/         Search results (dynamic)
   api/revalidate/ On-demand revalidation webhook for the ERP
 components/
-  ui/             Generic, reusable UI primitives (buttons, inputs, …)
+  ui/             Shared UI component library (see "UI components" below)
   layout/         Site chrome: header, footer, navigation
   brand/          Logo component
 features/         Feature modules, one folder per domain (cart, catalog, checkout, …)
@@ -282,3 +282,48 @@ Layouts are mobile first: classes without a prefix apply to phones.
 - Brand values that CSS can't provide (manifest colours, tagline, logo sizes) are in `lib/brand.ts`. They must match `tokens.css`.
 
 All logo and icon files are made from the supplied PNG logo. A vector (SVG) version from the designer would give sharper icons at small sizes. When it's available, drop it into `public/brand/` and regenerate the icons.
+
+## UI components
+
+Shared components live in `components/ui` and are imported from one place:
+
+```tsx
+import { Button, FormField, Input, toast } from "@/components/ui";
+```
+
+Live examples, with code for each component: **[/style-guide/components](http://localhost:3000/style-guide/components)**.
+
+| Group      | Components                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| Actions    | `Button` (primary, secondary, outline, ghost, danger; sm, md, lg; loading), `buttonClasses()` for links |
+| Forms      | `FormField` (label, hint, error), `Input`, `Textarea`, `Select`, `Checkbox`, `Radio`, `RadioGroup`      |
+| Display    | `Card`, `CardTitle`, `CardDescription`, `Badge`                                                         |
+| Overlays   | `Dialog`, `Drawer` (right, left, bottom), `toast` + `Toaster`                                           |
+| Navigation | `Tabs`, `Accordion`, `Breadcrumb`, `Pagination`                                                         |
+| Feedback   | `Spinner`, `Skeleton`, `ProductCardSkeleton`                                                            |
+| Commerce   | `QuantityStepper`                                                                                       |
+
+### How they're built
+
+- **Design tokens only.** Components use the semantic tokens from `styles/tokens.css`, so light and dark mode and brand changes apply everywhere.
+- **States:**
+  - `disabled` on every control.
+  - `loading` on `Button`, which shows a spinner, disables the button and sets `aria-busy`.
+  - `error` on `FormField`, `Checkbox` and `RadioGroup`, which marks the control `aria-invalid`, links the message with `aria-describedby` and announces it.
+- **Native HTML first.** Native elements give keyboard and screen-reader support for free:
+  - `Dialog` and `Drawer` use `<dialog>`: focus stays inside, Esc and clicking outside close it, and focus returns to the opener.
+  - `Accordion` uses `<details>`, so it works without JavaScript.
+  - `Select`, `Checkbox` and `Radio` use the native inputs, so they work with phone pickers.
+- **Keyboard:**
+  - Every control shows a visible focus outline.
+  - `Tabs` use the arrow keys and Home/End, and skip disabled tabs.
+  - `QuantityStepper` buttons disable at the min and max.
+- **Server-friendly.**
+  - Server Components: `Button`, `Card`, `Badge`, `Accordion`, `Breadcrumb`, `Pagination`, `Spinner` and `Skeleton`.
+  - Client components (they need browser state): form controls, overlays, `Tabs`, `toast` and `QuantityStepper`.
+  - `Pagination` and `Breadcrumb` render real links.
+- **Toasts:**
+  - Mounted once in `app/providers.tsx`. Call `toast.success()`, `toast.error()` or `toast.info()` from client code.
+  - Errors stay until dismissed, and other toasts close after 5 seconds.
+
+When you add a component, put it in `components/ui`, export it from `components/ui/index.ts`, and add an example to `app/style-guide/components/page.tsx`.

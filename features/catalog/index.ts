@@ -1,1 +1,1 @@
-export { ProductCard, ProductGrid } from "./ProductCard";
+export { ProductCard, ProductGrid, ProductGridSkeleton } from "./ProductCard";
