@@ -8,3 +8,13 @@ import "server-only";
  * modules (products, prices, stock, orders) are added in BUN-159.
  */
 export { erpFetch, ErpError } from "./client";
+export {
+  getCategories,
+  getCategory,
+  getFeaturedProducts,
+  getProduct,
+  getProductsByCategory,
+  searchProducts,
+  type Category,
+  type Product,
+} from "./catalog";
