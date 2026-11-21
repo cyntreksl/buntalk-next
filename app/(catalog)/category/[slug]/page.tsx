@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Breadcrumb } from "@/components/ui";
 import { ProductGrid } from "@/features/catalog";
 import { getCategories, getCategory, getProductsByCategory } from "@/lib/erp";
 
@@ -28,9 +28,7 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
 
   return (
     <main className="max-w-page mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
-      <Link href="/" className="text-body-sm text-primary underline">
-        &larr; Home
-      </Link>
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: category.name }]} />
       <header className="flex flex-col gap-2">
         <h1 className="text-h1">{category.name}</h1>
         <p className="text-muted-foreground">{category.description}</p>

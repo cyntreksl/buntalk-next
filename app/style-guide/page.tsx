@@ -118,6 +118,9 @@ export default function StyleGuidePage() {
               {id}
             </a>
           ))}
+          <a href="/style-guide/components" className="text-primary font-bold underline">
+            Component library →
+          </a>
         </nav>
       </header>
 
@@ -321,7 +324,11 @@ export default function StyleGuidePage() {
 
       <Section id="components" title="Basic elements">
         <p className="text-body-sm text-muted-foreground">
-          Examples of the tokens together. The reusable component library is BUN-153.
+          Examples of the tokens together. For the full component library with live examples, see{" "}
+          <a href="/style-guide/components" className="text-primary font-bold underline">
+            Components
+          </a>
+          .
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button

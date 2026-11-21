@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ProductGrid } from "@/features/catalog";
+import { Button, Input } from "@/components/ui";
+import { ProductGrid, ProductGridSkeleton } from "@/features/catalog";
 import { searchProducts } from "@/lib/erp";
 
 // Search: dynamic. The page frame is static; results depend on ?q= so they
@@ -31,21 +32,14 @@ export default function SearchPage({ searchParams }: PageProps<"/search">) {
   return (
     <main className="max-w-page mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
       <h1 className="text-h1">Search</h1>
-      <form action="/search" className="flex gap-2">
-        <input
-          name="q"
-          type="search"
-          placeholder="Search products"
-          className="border-border-strong bg-surface flex-1 rounded-sm border px-3 py-2"
-        />
-        <button
-          type="submit"
-          className="bg-primary text-primary-foreground hover:bg-primary-hover rounded-md px-5 py-2 font-bold"
-        >
-          Search
-        </button>
+      <form action="/search" role="search" className="flex gap-2">
+        <label htmlFor="search-q" className="sr-only">
+          Search products
+        </label>
+        <Input id="search-q" name="q" type="search" placeholder="Search products" />
+        <Button type="submit">Search</Button>
       </form>
-      <Suspense fallback={<p className="text-muted-foreground">Searching…</p>}>
+      <Suspense fallback={<ProductGridSkeleton />}>
         <Results searchParams={searchParams} />
       </Suspense>
     </main>
