@@ -27,7 +27,7 @@ export function DetailTemplate({ breadcrumb, media, summary, children }: DetailT
       <div className="grid gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-12">
         <div className="min-w-0">{media}</div>
         <div className="min-w-0">
-          <div className="flex flex-col gap-5 md:sticky md:top-6">{summary}</div>
+          <div className="flex flex-col gap-5 md:sticky md:top-(--sticky-offset)">{summary}</div>
         </div>
       </div>
       {children && <div className="min-w-0">{children}</div>}

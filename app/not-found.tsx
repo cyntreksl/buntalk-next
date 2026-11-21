@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageShell } from "@/components/layout/PageShell";
 import { SiteFooter } from "@/components/layout/SiteFooter";
-import { SiteHeader } from "@/components/layout/SiteHeader";
+import { SiteHeader } from "@/components/layout/header/SiteHeader";
 import { buttonClasses } from "@/components/ui";
 
 /** 404 page, shown inside the normal site header and footer. */
