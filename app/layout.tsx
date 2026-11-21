@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Baloo_2, Noto_Sans_Sinhala, Nunito } from "next/font/google";
-import { SiteFooter } from "@/components/layout/SiteFooter";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { brand } from "@/lib/brand";
 import { publicEnv } from "@/lib/env";
 import { Providers } from "./providers";
@@ -50,12 +48,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${nunito.variable} ${baloo.variable} ${notoSinhala.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col">
-        <Providers>
-          <SiteHeader />
-          <div className="flex flex-1 flex-col">{children}</div>
-          <SiteFooter />
-        </Providers>
+      <body className="min-h-full">
+        {/* Header and footer come from the route group layouts:
+            app/(site)/layout.tsx (full site) and app/(checkout)/layout.tsx (minimal). */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

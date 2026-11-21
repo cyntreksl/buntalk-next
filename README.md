@@ -52,14 +52,19 @@ Env vars are validated with Zod:
 ```
 app/              Routes, layouts and route handlers (App Router)
   layout.tsx      Root layout: fonts, metadata, <Providers>
-  providers.tsx   Client-side providers (TanStack Query)
-  (catalog)/      Static + ISR pages: home, category/[slug], product/[slug]
-  (private)/      Per-user pages, never cached: cart, checkout, account
-  search/         Search results (dynamic)
+  providers.tsx   Client-side providers (TanStack Query, toasts)
+  not-found.tsx   404 page
+  (site)/         Pages with the full site header and footer
+    (catalog)/    Static + ISR pages: home, category/[slug], product/[slug]
+    (private)/    Per-user pages, never cached: cart, account/*
+    search/       Search results (dynamic)
+    style-guide/  Design system and component reference
+  (checkout)/     Checkout, with the minimal checkout header
   api/revalidate/ On-demand revalidation webhook for the ERP
 components/
   ui/             Shared UI component library (see "UI components" below)
-  layout/         Site chrome: header, footer, navigation
+  layout/         Page shell, header, footer, Container, PageHeader
+    templates/    Page templates (see "Layout and page templates" below)
   brand/          Logo component
 features/         Feature modules, one folder per domain (cart, catalog, checkout, …)
   cart/           Cart store (Zustand) and cart components
@@ -117,7 +122,7 @@ The project uses Next.js [Cache Components](https://nextjs.org/docs/app/getting-
 
 `npm run build` prints this table as well. `○` means static, `◐` means a static shell with per-request parts, and `ƒ` means fully dynamic.
 
-### Catalog pages (`app/(catalog)/`)
+### Catalog pages (`app/(site)/(catalog)/`)
 
 - Data comes from the cached reads in `lib/erp/catalog.ts`. Each one is a `'use cache'` function with the `catalog` cache profile and cache tags.
 - The `(catalog)` layout sets `ensureStatic = 'navigation'`:
@@ -168,18 +173,18 @@ Responses:
 
 Pages keep serving the old version until the new one is ready, so visitors never wait. Tag names are in `lib/cache-tags.ts`. When adding a cached read, give it the matching tags.
 
-### Per-user pages (`app/(private)/`)
+### Per-user pages (`app/(site)/(private)/` and `app/(checkout)/`)
 
 Cart, checkout and account pages are never cached for other users:
 
 - Per-user server data (the session, orders) is read with `cookies()` inside `<Suspense>`, which makes that part render on every request.
-- The `(private)` layout sets `ensureStatic = false`, so these routes can never be forced static. It also sets `robots: noindex`.
+- The `(private)` and `(checkout)` layouts set `ensureStatic = false`, so these routes can never be forced static. It also sets `robots: noindex`.
 - `next.config.ts` sends `Cache-Control: private, no-store, max-age=0` for `/cart`, `/checkout` and `/account`, so browsers, proxies and CDNs never store them.
 
 ### Adding a page
 
-1. Is it the same for every visitor? Put it in `app/(catalog)/`, read data through cached functions in `lib/erp`, and add `generateStaticParams` for dynamic routes.
-2. Does it show per-user data? Put it in `app/(private)/` (and add its path to `PRIVATE_PATHS` in `next.config.ts`). Read the session inside `<Suspense>`.
+1. Is it the same for every visitor? Put it in `app/(site)/(catalog)/`, read data through cached functions in `lib/erp`, and add `generateStaticParams` for dynamic routes.
+2. Does it show per-user data? Put it in `app/(site)/(private)/` (and add its path to `PRIVATE_PATHS` in `next.config.ts`). Read the session inside `<Suspense>`.
 3. Does it depend on the query string? Read `searchParams` inside `<Suspense>`, as in `app/search/page.tsx`.
 
 ## Code quality
@@ -327,3 +332,53 @@ Live examples, with code for each component: **[/style-guide/components](http://
   - Errors stay until dismissed, and other toasts close after 5 seconds.
 
 When you add a component, put it in `components/ui`, export it from `components/ui/index.ts`, and add an example to `app/style-guide/components/page.tsx`.
+
+## Layout and page templates
+
+### Page shell
+
+Every page sits in `PageShell` (`components/layout/PageShell.tsx`), which provides three slots: **header**, **main content** and **footer**.
+
+- It starts with a "Skip to content" link for keyboard users.
+- It renders the page's single `<main>`.
+- It keeps the footer at the bottom on short pages.
+
+The header and footer come from the route group layouts:
+
+| Route group  | Layout                      | Header and footer                                        |
+| ------------ | --------------------------- | -------------------------------------------------------- |
+| `(site)`     | `app/(site)/layout.tsx`     | Full site header (logo, navigation) and the full footer  |
+| `(checkout)` | `app/(checkout)/layout.tsx` | Minimal header (logo, "Back to cart") and a short footer |
+
+Pages don't render `<main>` themselves. They render a template, or a `Container`.
+
+### Templates
+
+All templates are in `components/layout/templates`:
+
+```tsx
+import { ListingTemplate } from "@/components/layout/templates";
+```
+
+| Template            | Used by                                        | Phone (from 360px)                                           | Tablet (`md`, 768px)           | Desktop (`lg`, 1024px+)                                         |
+| ------------------- | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------- |
+| `FullWidthTemplate` | Home                                           | Stacked full-width sections (`FullWidthSection`)             | Same                           | Same, content capped at 1152px                                  |
+| `ListingTemplate`   | Category, search                               | Sidebar moves into a drawer behind a button; full-width grid | Same; 2-column grid            | Sidebar column (16rem) + 3-column grid                          |
+| `DetailTemplate`    | Product                                        | Breadcrumb, image, summary, details stacked                  | Image and summary side by side | Wider image column; summary stays in view while scrolling       |
+| `CheckoutTemplate`  | Checkout                                       | Order summary first, then the form                           | Same                           | Form left, order summary in a column that stays in view (22rem) |
+| `AccountTemplate`   | Account (overview, orders, addresses, profile) | Account menu as a row of tabs that scrolls inside itself     | Same                           | Side menu column (14rem)                                        |
+
+Shared pieces:
+
+- **`Container`:** centres content at `page`, `content` or `prose` width. It adds 16px side padding on phones and 24px from tablets up.
+- **`PageHeader`:** breadcrumb, `<h1>`, description and actions.
+
+### Responsive rules
+
+- Design for 360px first.
+- Grid and flex children that hold text get `min-w-0`, so long words wrap instead of widening the page.
+- Long titles use `break-words`.
+- Anything wider than the screen, such as the account menu or tab rows, scrolls inside its own `overflow-x-auto` box. The page itself never scrolls sideways.
+- As a last safety net, `PageShell` clips sideways overflow. Don't rely on it: the layout check below looks for overflowing elements, not just the page's scroll width.
+
+**Layout check:** every page has been checked at 360px, 768px and 1280px for elements wider than the screen. Repeat this when adding a template.
