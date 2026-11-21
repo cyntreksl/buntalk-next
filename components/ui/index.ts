@@ -20,4 +20,5 @@ export { ProductCardSkeleton, Skeleton } from "./Skeleton";
 export { Spinner } from "./Spinner";
 export { Tabs, type TabItem } from "./Tabs"; // client
 export { Toaster, toast } from "./Toast"; // client
+export { useDismiss } from "./useDismiss"; // client
 export * from "./icons";

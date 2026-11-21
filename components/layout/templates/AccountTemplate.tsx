@@ -1,17 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { accountNav, type AccountSection } from "@/features/account/nav";
 import { cx } from "@/lib/utils";
 import { Container } from "../Container";
 import { PageHeader } from "../PageHeader";
 
-export const accountNav = [
-  { id: "overview", label: "Overview", href: "/account" },
-  { id: "orders", label: "Orders", href: "/account/orders" },
-  { id: "addresses", label: "Addresses", href: "/account/addresses" },
-  { id: "profile", label: "Profile", href: "/account/profile" },
-] as const;
-
-export type AccountSection = (typeof accountNav)[number]["id"];
+export { accountNav, type AccountSection };
 
 type AccountTemplateProps = {
   /** Which menu item is the current page. */

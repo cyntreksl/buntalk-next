@@ -71,3 +71,32 @@ export const InfoIcon = (p: IconProps) => (
     <path d="M12 16v-4M12 8h.01" />
   </Icon>
 );
+export const MenuIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </Icon>
+);
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+);
+export const BagIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5 8Z" />
+    <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+  </Icon>
+);
+export const UserIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </Icon>
+);
+export const GlobeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+  </Icon>
+);

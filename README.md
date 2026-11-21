@@ -61,9 +61,11 @@ app/              Routes, layouts and route handlers (App Router)
     style-guide/  Design system and component reference
   (checkout)/     Checkout, with the minimal checkout header
   api/revalidate/ On-demand revalidation webhook for the ERP
+  api/session/    "Is the visitor signed in?" for the header account menu
 components/
   ui/             Shared UI component library (see "UI components" below)
-  layout/         Page shell, header, footer, Container, PageHeader
+  layout/         Page shell, footer, Container, PageHeader
+    header/       Site header: mega-menu, mobile drawer, search, cart, account menu
     templates/    Page templates (see "Layout and page templates" below)
   brand/          Logo component
 features/         Feature modules, one folder per domain (cart, catalog, checkout, …)
@@ -382,3 +384,33 @@ Shared pieces:
 - As a last safety net, `PageShell` clips sideways overflow. Don't rely on it: the layout check below looks for overflowing elements, not just the page's scroll width.
 
 **Layout check:** every page has been checked at 360px, 768px and 1280px for elements wider than the screen. Repeat this when adding a template.
+
+## Site header
+
+`components/layout/header/SiteHeader.tsx` is shown on every page in the `(site)` group. Checkout uses its own minimal header.
+
+| Part       | Phone / tablet (below `lg`)                                                 | Desktop (`lg`+)                                                        |
+| ---------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Navigation | ☰ button opens a drawer: search, categories, account links, cart, language | "All categories" mega-menu plus direct links to the first 6 categories |
+| Search     | In the drawer                                                               | Search box in the header (a plain form to `/search`)                   |
+| Cart       | Bag icon with item count                                                    | Same                                                                   |
+| Account    | Person icon opens the account / sign-in menu                                | Same, with a "Sign in" or "Account" label at `xl`                      |
+| Language   | In the drawer                                                               | Slot next to the account menu (switcher comes with BUN-211)            |
+
+### How it works
+
+- **Categories come from the ERP.** `SiteHeader` reads `getCategories()`, the cached ERP read from `lib/erp`. Nothing is hard-coded, and the `catalog` cache tag refreshes the menu with the rest of the catalog.
+- **The header HTML is the same for every visitor**, so it can be cached with the page. Anything per-visitor is filled in in the browser:
+  - **Cart count:** `CartButton` reads the cart store, so the count changes as soon as an item is added. The server always renders "Cart, empty".
+  - **Signed-in state:** `AccountMenu` calls `GET /api/session` (never cached), which returns only `{ signedIn }`.
+- **It stays at the top when scrolling.** The header uses `position: sticky` and gets a shadow once the page scrolls.
+  - Its height is in `--header-height` (`styles/globals.css`).
+  - Sticky columns use `top-(--sticky-offset)` so they sit below the header, and anchor links scroll their target clear of it.
+  - If you change the header's height, update the variable.
+
+### Keyboard and screen readers
+
+- **Mega-menu:** a disclosure button (`aria-expanded`). Tab moves through its links. Esc closes it and returns focus to the button, and clicking outside or tabbing away also closes it.
+- **Mobile drawer:** the shared `Drawer` (native `<dialog>`). Focus moves in and Tab stays inside. Esc or the × button closes it, and focus returns to the ☰ button. It also closes when you follow a link.
+- **Cart link:** has a spoken label such as "Cart, 3 items".
+- **Current page:** marked with `aria-current="page"`.

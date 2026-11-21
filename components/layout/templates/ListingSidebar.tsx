@@ -23,7 +23,7 @@ export function ListingSidebar({ title, children }: { title: string; children: R
         </Drawer>
       </div>
       <aside aria-label={title} className="hidden lg:block">
-        <div className="sticky top-6 flex flex-col gap-4">{children}</div>
+        <div className="sticky top-(--sticky-offset) flex flex-col gap-4">{children}</div>
       </aside>
     </>
   );
