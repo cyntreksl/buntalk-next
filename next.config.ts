@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { oldSiteRedirects } from "./lib/content-pages";
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
@@ -24,6 +25,11 @@ const nextConfig: NextConfig = {
     catalog: { stale: 5 * MINUTE, revalidate: 15 * MINUTE, expire: DAY },
     // Search results per query
     search: { stale: MINUTE, revalidate: 5 * MINUTE, expire: HOUR },
+  },
+
+  /** Old buntalk.lk page addresses → new pages (see lib/content-pages.ts). */
+  async redirects() {
+    return oldSiteRedirects;
   },
 
   async headers() {
