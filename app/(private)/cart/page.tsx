@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Cart" };
 
 export default function CartPage() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">Your cart</h1>
+    <main className="max-w-content mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-10 md:px-6 md:py-16">
+      <h1 className="text-h1">Your cart</h1>
       <CartContents />
       <Link href="/checkout" className="self-start underline">
         Go to checkout

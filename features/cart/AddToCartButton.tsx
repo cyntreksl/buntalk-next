@@ -12,7 +12,7 @@ export function AddToCartButton({ item }: { item: Omit<CartItem, "quantity"> }) 
     <button
       type="button"
       onClick={() => addItem(item)}
-      className="bg-foreground text-background rounded-md px-4 py-2 hover:opacity-90"
+      className="bg-primary text-primary-foreground hover:bg-primary-hover rounded-md px-5 py-2.5 font-bold"
     >
       Add to cart
     </button>
