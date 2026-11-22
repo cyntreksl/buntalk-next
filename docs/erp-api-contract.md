@@ -255,9 +255,20 @@ Deliveries may be retried or arrive out of order: the storefront keeps the newes
 
 **Polling (fallback).** The storefront also reads `GET /orders/{link_id}` for open orders every 5 minutes, and when a customer views an order whose status is over a minute old.
 
-### Customer (`PosCustomer`)
+### Customer (`PosCustomer`; BUN-166, ERP side: BUN-243 and BUN-254)
 
-`link_id`, `code`, `name`, `phone`, `email`, `is_active`.
+`link_id`, `code`, `name`, `phone` (E.164 `+94…`), `email`, `is_active`, plus the **NEW** fields:
+
+- `merged_into_link_id`: set when staff merged this customer into another one;
+- `addresses[]`: `label`, `line1`, `line2`, `city`, `notes`, `is_default`.
+
+| Call                  | Purpose                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /customers`     | Match by phone (normalised), then email, or create. Never returns a merged-away customer. `Idempotency-Key` required                                         |
+| `PUT /customers/{id}` | Replace `name`, `phone`, `email` and `addresses[]` (`Idempotency-Key`). **409** if the phone/email belongs to another customer; **404** if merged or unknown |
+| `GET /customers/{id}` | Read one                                                                                                                                                     |
+
+The storefront links each storefront customer to exactly one ERP customer, and sends the full profile after every change. On 404 it links again by phone. On 409 it stops and alerts the team.
 
 ### Order (`PosOrder` and `PosOrderLine`, online type)
 
@@ -296,6 +307,7 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-251 | Delivery areas, delivery fees and time slots             | BUN-164, BUN-199          |
 | BUN-252 | Cake Studio cakes as lines of an online order            | BUN-164, BUN-184          |
 | BUN-253 | Online order fulfilment workflow and status webhooks     | BUN-165, BUN-194          |
+| BUN-254 | Update storefront customers: profile, addresses, merges  | BUN-166, BUN-193, BUN-198 |
 
 ## 6. Open questions for the ERP team
 

@@ -107,6 +107,7 @@ export function toCustomer(c: ErpCustomer): Customer {
     name: c.name,
     phone: orUndefined(c.phone),
     email: orUndefined(c.email),
+    mergedIntoId: orUndefined(c.merged_into_link_id),
   };
 }
 
