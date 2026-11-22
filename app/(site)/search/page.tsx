@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { after } from "next/server";
+import { after, connection } from "next/server";
 import { Suspense } from "react";
 import { ListingTemplate } from "@/components/layout/templates";
 import { Button, EmptyState, Input, SearchIcon } from "@/components/ui";
@@ -60,6 +60,8 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
   const [products, categories] = await Promise.all([searchProducts(query), getCategories()]);
   if (products.length === 0) {
     // Count it for the team (GET /api/search/misses), after the page is sent.
+    // connection(): only for a real visit, never while prerendering.
+    await connection();
     after(async () => {
       try {
         await recordSearchMiss(await getDb(), query);

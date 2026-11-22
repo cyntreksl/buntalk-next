@@ -67,7 +67,7 @@ Rules for catalog endpoints:
 - Send each item's `is_active` and `visible_online` flags. Hidden items may be included: the storefront filters them (BUN-161), and it needs hidden parent categories to hide their sub-categories.
 - Prices are **resolved by the ERP** (`ResolveProductPrice`) for the online channel, with schemes applied, so the storefront never calculates prices itself.
 - Each SKU (size/variant) carries its own resolved `price`. The cart charges the chosen SKU's price, or the product price for a product without SKUs.
-- With `customer={link_id}`, prices are that customer's own (customer group → price level → `PosPriceLevelPrice`), falling back to the online price. The storefront only sends `customer` on live per-customer calls (cart, checkout), never for cached pages (BUN-162, BUN-247).
+- With `customer={link_id}`, prices are that customer's own (customer group → price level → `PosPriceLevelPrice`), falling back to the online price. The storefront only sends `customer` on live per-customer calls (cart, checkout, and "Your price" on cards and product pages through `/api/prices`), never for cached pages (BUN-162, BUN-174, BUN-247). For a grid of products it currently makes one call per product; accepting `customer` on `GET /products?slugs=a,b,c` would make that one call.
 - **Search (BUN-172)** runs on the storefront over the full `GET /products` list (cached), so it can be typo-tolerant and answer suggestions instantly. The ERP doesn't need a `search` parameter. If the catalog grows to several thousand products, `GET /products` should support paging (`?page=`, `per_page`) so the list can be read in parts.
 
 ## 4. Entities

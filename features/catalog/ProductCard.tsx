@@ -5,7 +5,9 @@ import type { Product } from "@/lib/erp";
 import { listingPrice } from "@/lib/pricing";
 import { cx } from "@/lib/utils";
 import { OfferBadges } from "./OfferBadges";
-import { Price, savingsLabel } from "./Price";
+import { CustomerPricesProvider } from "./CustomerPrices";
+import { OfferPrice } from "./OfferPrice";
+import { savingsLabel } from "./Price";
 import { ProductCardAction } from "./ProductCardAction";
 import { ProductImage } from "./ProductImage";
 
@@ -46,11 +48,14 @@ export function ProductCard({ product, className }: { product: Product; classNam
             {product.name}
           </Link>
         </h3>
-        <Price
+        {/* ERP price, kept correct when an offer ends; "Your price" when signed in (BUN-174). */}
+        <OfferPrice
+          slug={product.slug}
           price={shown.price}
           compareAtPrice={shown.compareAtPrice}
           from={shown.from}
           currency={product.currency}
+          offers={product.offers}
           className="mt-auto"
         />
         <div className="mt-1">
@@ -77,18 +82,20 @@ const gridClasses = "grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-4 md:grid-cols-3 
 export function ProductRail({ products, className }: { products: Product[]; className?: string }) {
   if (products.length === 0) return null;
   return (
-    <ul
-      className={cx(
-        "-mx-4 grid snap-x snap-mandatory auto-cols-[44%] grid-flow-col gap-x-3 overflow-x-auto px-4 pb-2 sm:auto-cols-[30%] md:-mx-6 md:px-6 lg:mx-0 lg:grid-flow-row lg:grid-cols-5 lg:gap-x-4 lg:overflow-visible lg:px-0",
-        "[&>li]:snap-start",
-        className,
-      )}
-    >
-      {products.slice(0, 10).map((product, i) => (
-        // Desktop shows one row of five; the rest are reachable on smaller screens by swiping.
-        <ProductCard key={product.slug} product={product} className={cx(i >= 5 && "lg:hidden")} />
-      ))}
-    </ul>
+    <CustomerPricesProvider slugs={products.slice(0, 10).map((p) => p.slug)}>
+      <ul
+        className={cx(
+          "-mx-4 grid snap-x snap-mandatory auto-cols-[44%] grid-flow-col gap-x-3 overflow-x-auto px-4 pb-2 sm:auto-cols-[30%] md:-mx-6 md:px-6 lg:mx-0 lg:grid-flow-row lg:grid-cols-5 lg:gap-x-4 lg:overflow-visible lg:px-0",
+          "[&>li]:snap-start",
+          className,
+        )}
+      >
+        {products.slice(0, 10).map((product, i) => (
+          // Desktop shows one row of five; the rest are reachable on smaller screens by swiping.
+          <ProductCard key={product.slug} product={product} className={cx(i >= 5 && "lg:hidden")} />
+        ))}
+      </ul>
+    </CustomerPricesProvider>
   );
 }
 
@@ -106,11 +113,14 @@ export function ProductGrid({
     return empty ?? <p className="text-muted-foreground">No products found.</p>;
   }
   return (
-    <ul className={cx(gridClasses, className)}>
-      {products.map((product) => (
-        <ProductCard key={product.slug} product={product} />
-      ))}
-    </ul>
+    // One request for the signed-in customer's own prices for the whole grid (BUN-174).
+    <CustomerPricesProvider slugs={products.map((p) => p.slug)}>
+      <ul className={cx(gridClasses, className)}>
+        {products.map((product) => (
+          <ProductCard key={product.slug} product={product} />
+        ))}
+      </ul>
+    </CustomerPricesProvider>
   );
 }
 

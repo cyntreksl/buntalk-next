@@ -1,34 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui";
 import type { ProductOffer } from "@/lib/erp";
-import { isWithinWindow } from "@/lib/offers";
+import { isWithinWindow, offerValidity } from "@/lib/offers";
 import { cx, formatPrice } from "@/lib/utils";
-
-/**
- * The current time, refreshed every 15 seconds. On the server (and during
- * hydration) it's null: offers are then shown as the cached page has them.
- * In the browser, offers outside their start/end time are hidden within
- * seconds, even if the cached page is a few minutes old.
- */
-const TICK_MS = 15_000;
-let now = Date.now();
-const subscribe = (onChange: () => void) => {
-  now = Date.now();
-  const id = setInterval(() => {
-    now = Date.now();
-    onChange();
-  }, TICK_MS);
-  return () => clearInterval(id);
-};
-// Returns the stored value (not Date.now()), so React sees the same time until the next tick.
-const useNow = () =>
-  useSyncExternalStore(
-    subscribe,
-    () => now,
-    () => null,
-  );
+import { useNow } from "./useNow";
 
 function useCurrentOffers(offers: ProductOffer[] | undefined) {
   const now = useNow();
@@ -64,10 +40,13 @@ export function OfferBadges({
   );
 }
 
-const dateFormat = new Intl.DateTimeFormat("en-LK", { day: "numeric", month: "short" });
-
-/** Offers on the product page: badge, name, description, conditions and end date. */
+/**
+ * Offers on the product page: badge, name, description, conditions and when
+ * it ends ("Ends today at 6:00 pm", "Valid until Sat 28 Nov", Sri Lanka time).
+ * Each disappears by itself when it ends.
+ */
 export function OfferList({ offers, currency }: { offers: ProductOffer[]; currency: string }) {
+  const now = useNow();
   const current = useCurrentOffers(offers);
   if (current.length === 0) return null;
   return (
@@ -82,7 +61,7 @@ export function OfferList({ offers, currency }: { offers: ProductOffer[]; curren
           <p className="text-body-sm text-muted-foreground mt-1">
             {[
               o.minSpend ? `On orders over ${formatPrice(o.minSpend, currency)}` : null,
-              o.endsAt ? `Ends ${dateFormat.format(new Date(o.endsAt))}` : null,
+              offerValidity(o, now),
               "Applied automatically in your cart",
             ]
               .filter(Boolean)

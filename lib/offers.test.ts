@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { Scheme } from "@/lib/erp";
-import { isWithinWindow, offersFor, schemeLabel, withSchemeBackedDiscounts } from "./offers";
+import {
+  displayPrice,
+  isWithinWindow,
+  nextOfferChange,
+  offerValidity,
+  offersFor,
+  personalPriceFor,
+  priceNow,
+  schemeLabel,
+  withSchemeBackedDiscounts,
+} from "./offers";
 
 const scheme = (x: Partial<Scheme>): Scheme => ({
   id: "s",
@@ -101,5 +111,100 @@ describe("withSchemeBackedDiscounts", () => {
     const later = { ...product, offers: [{ startsAt: "2026-11-23T00:00:00Z" }] };
     expect(withSchemeBackedDiscounts(ended, now).compareAtPrice).toBeUndefined();
     expect(withSchemeBackedDiscounts(later, now).compareAtPrice).toBeUndefined();
+  });
+});
+
+describe("offer timing (BUN-174)", () => {
+  // 22 Nov 2026, 10:00 in Colombo.
+  const now = Date.parse("2026-11-22T04:30:00Z");
+
+  it("words the end date in Sri Lanka time", () => {
+    expect(offerValidity({ endsAt: "2026-11-22T12:30:00Z" }, now)).toMatch(
+      /^Ends today at 6:00\s?pm$/,
+    );
+    expect(offerValidity({ endsAt: "2026-11-23T03:30:00Z" }, now)).toMatch(
+      /^Ends tomorrow at 9:00\s?am$/,
+    );
+    expect(offerValidity({ endsAt: "2026-11-28T10:00:00Z" }, now)).toMatch(
+      /^Valid until Sat,? 28 Nov$/,
+    );
+    expect(offerValidity({}, now)).toBeNull();
+    // Cached HTML (time not known yet): always the date.
+    expect(offerValidity({ endsAt: "2026-11-22T12:30:00Z" }, null)).toMatch(
+      /^Valid until Sun,? 22 Nov$/,
+    );
+  });
+
+  it("finds the next start or end", () => {
+    expect(
+      nextOfferChange(
+        [
+          { endsAt: "2026-11-20T00:00:00Z" },
+          { startsAt: "2026-11-24T00:00:00Z", endsAt: "2026-11-26T00:00:00Z" },
+          { endsAt: "2026-11-23T00:00:00Z" },
+        ],
+        now,
+      ),
+    ).toBe(Date.parse("2026-11-23T00:00:00Z"));
+    expect(nextOfferChange([{}], now)).toBeNull();
+  });
+
+  it("shows the original price once the scheme behind a discount has ended", () => {
+    const shown = { price: 150, compareAtPrice: 180 };
+    expect(priceNow(shown, [{ endsAt: "2026-11-25T00:00:00Z" }], now)).toEqual(shown);
+    expect(priceNow(shown, [{ endsAt: "2026-11-21T00:00:00Z" }], now)).toEqual({
+      price: 180,
+      compareAtPrice: undefined,
+    });
+    expect(priceNow({ price: 90 }, [], now)).toEqual({ price: 90 });
+    // No offers known at all (e.g. sample data): leave it as the page has it.
+    expect(priceNow(shown, [], now)).toEqual(shown);
+  });
+});
+
+describe("displayPrice and personalPriceFor (BUN-174)", () => {
+  const now = Date.parse("2026-11-22T04:30:00Z");
+  const live = [{ endsAt: "2026-11-25T00:00:00Z" }];
+  const ended = [{ endsAt: "2026-11-21T00:00:00Z" }];
+
+  it("shows the ERP price, corrected once the offer has ended", () => {
+    expect(displayPrice({ price: 150, compareAtPrice: 180 }, { offers: live, now })).toEqual({
+      price: 150,
+      compareAtPrice: 180,
+      yourPrice: false,
+    });
+    expect(displayPrice({ price: 150, compareAtPrice: 180 }, { offers: ended, now })).toEqual({
+      price: 180,
+      compareAtPrice: undefined,
+      yourPrice: false,
+    });
+    // Cached HTML before the browser knows the time: as the page has it.
+    expect(displayPrice({ price: 150, compareAtPrice: 180 }, { offers: ended, now: null })).toEqual(
+      { price: 150, compareAtPrice: 180, yourPrice: false },
+    );
+  });
+
+  it("shows the customer's own price, with the usual price crossed out when higher", () => {
+    expect(displayPrice({ price: 120 }, { now, personal: 100 })).toEqual({
+      price: 100,
+      compareAtPrice: 120,
+      yourPrice: true,
+    });
+    expect(displayPrice({ price: 120 }, { now, personal: 130 })).toEqual({
+      price: 130,
+      compareAtPrice: undefined,
+      yourPrice: true,
+    });
+    expect(displayPrice({ price: 120 }, { now, personal: 120 })).toMatchObject({
+      yourPrice: false,
+    });
+  });
+
+  it("picks the size's price, or the lowest size price", () => {
+    const entry = { price: 4500, skus: { s1: 4000, s2: 7600 } };
+    expect(personalPriceFor(entry, "s2")).toBe(7600);
+    expect(personalPriceFor(entry)).toBe(4000);
+    expect(personalPriceFor({ price: 100, skus: {} })).toBe(100);
+    expect(personalPriceFor(undefined)).toBeUndefined();
   });
 });

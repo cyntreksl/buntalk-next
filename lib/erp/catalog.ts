@@ -8,7 +8,7 @@ import { ErpNotFoundError } from "./errors";
 import { erpGet } from "./http";
 import { toBanner, toCategory, toProduct } from "./mappers";
 import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
-import { offersFor, withSchemeBackedDiscounts } from "@/lib/offers";
+import { nextOfferChange, offersFor, withSchemeBackedDiscounts } from "@/lib/offers";
 import { searchCatalog } from "@/lib/search";
 import {
   erpBannerSchema,
@@ -75,6 +75,24 @@ async function visibleProducts(products: ErpProduct[]): Promise<Product[]> {
 }
 
 /**
+ * Inside a cached read: refresh it when the next offer starts or ends
+ * (BUN-174), so a scheme price goes back to normal on time instead of up to
+ * 15 minutes late. At most every minute; the normal profile applies when no
+ * offer changes soon. (cacheLife keeps the shortest of the values given.)
+ */
+function refreshAtNextOfferChange(schemes: Scheme[]) {
+  const next = nextOfferChange(schemes);
+  if (next === null) return;
+  const seconds = Math.ceil((next - Date.now()) / 1000) + 5;
+  if (seconds < 15 * 60) cacheLife({ revalidate: Math.max(60, seconds) });
+}
+
+/** Same, for reads that build on the product lists. */
+async function refreshProductsAtNextOfferChange() {
+  if (!isSampleCatalogEnabled()) refreshAtNextOfferChange(await getActiveSchemes());
+}
+
+/**
  * Active schemes (offers) everyone can get, from the ERP scheme engine.
  * Inactive, ended and customer-only schemes are left out. Schemes that start
  * later are kept with their dates, so their badges appear on time in the
@@ -91,10 +109,12 @@ export async function getActiveSchemes(): Promise<Scheme[]> {
   if (isSampleCatalogEnabled()) return [];
   const { data } = await erpGet("/schemes", listOf(erpSchemeSchema));
   const now = Date.now();
-  return data
+  const schemes = data
     .filter((s) => s.is_active && s.audience === "everyone")
     .filter((s) => !s.ends_at || Date.parse(s.ends_at) > now)
     .map(toScheme);
+  refreshAtNextOfferChange(schemes);
+  return schemes;
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -161,6 +181,7 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
     category: categorySlug,
     include_subcategories: 1,
   });
+  await refreshProductsAtNextOfferChange();
   return visibleProducts(data);
 }
 
@@ -179,6 +200,7 @@ export async function getProduct(slug: string): Promise<Product | null> {
   const res = await erpGet(`/products/${encodeURIComponent(slug)}`, one(erpProductSchema)).catch(
     notFoundToNull,
   );
+  await refreshProductsAtNextOfferChange();
   // A hidden product's page is a 404, exactly like a product that doesn't exist.
   return res ? ((await visibleProducts([res.data]))[0] ?? null) : null;
 }
@@ -196,6 +218,7 @@ export async function getFeaturedProducts(): Promise<Product[]> {
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter((p) => p.featured);
   const { data } = await erpGet("/products", listOf(erpProductSchema), { featured: 1 });
+  await refreshProductsAtNextOfferChange();
   return visibleProducts(data);
 }
 
@@ -224,6 +247,7 @@ export async function getOfferProducts(): Promise<Product[]> {
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter(isOnOffer);
   const { data } = await erpGet("/products", listOf(erpProductSchema), { on_offer: 1 });
+  await refreshProductsAtNextOfferChange();
   return (await visibleProducts(data)).filter(isOnOffer);
 }
 
@@ -239,6 +263,7 @@ export async function getAllProducts(): Promise<Product[]> {
 
   if (isSampleCatalogEnabled()) return sampleProducts;
   const { data } = await erpGet("/products", listOf(erpProductSchema));
+  await refreshProductsAtNextOfferChange();
   return visibleProducts(data);
 }
 
@@ -249,6 +274,7 @@ export async function searchProducts(query: string): Promise<Product[]> {
   cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products, cacheTags.schemes);
 
   if (!query.trim()) return [];
+  await refreshProductsAtNextOfferChange();
   const [products, categories] = await Promise.all([getAllProducts(), getCategories()]);
   return searchCatalog(products, query, new Map(categories.map((c) => [c.slug, c.name])));
 }
