@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { Card, Skeleton } from "@/components/ui";
 import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
-import { CartTotal } from "./CartContents";
+import { CartTotals } from "./CartContents";
 import { useCartStore } from "./store";
 import { removedNoticeText, useServerCart } from "./useServerCart";
 
@@ -18,8 +18,8 @@ const useIsClient = () =>
   );
 
 /**
- * Compact, read-only order summary for checkout. Prices and the subtotal come
- * from the server (ERP prices). Placing the order prices it again on the
+ * Compact, read-only order summary for checkout. Prices, offers and totals
+ * come from the server (ERP prices and the ERP scheme engine). Placing the order prices it again on the
  * server (lib/cart.server.ts priceCart), and the ERP re-prices it too.
  */
 export function CartSummary() {
@@ -64,7 +64,8 @@ export function CartSummary() {
                 </span>
                 <span className="shrink-0">
                   {formatPrice(
-                    server.lineTotals[item.key] ?? lineTotal(item.unitPrice, item.quantity),
+                    server.lines[item.key]?.lineSubtotal ??
+                      lineTotal(item.unitPrice, item.quantity),
                     currency,
                   )}
                 </span>
@@ -72,12 +73,7 @@ export function CartSummary() {
             ))}
           </ul>
           <div className="border-border border-t pt-3">
-            <CartTotal
-              subtotal={server.subtotal}
-              currency={currency}
-              checking={server.status === "checking"}
-              failed={server.status === "error"}
-            />
+            <CartTotals server={server} className="text-body-sm" />
           </div>
         </>
       )}

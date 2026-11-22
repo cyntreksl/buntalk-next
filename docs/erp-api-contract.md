@@ -133,10 +133,50 @@ tables today.
 
 `link_id`, `title`, `subtitle`, `cta_label`, `href` (storefront path or URL), `image_url`, `image_alt`. **All NEW** as a storefront concept.
 
-### Scheme (`PosOccasionOffer`, `PosGroupDiscount`)
+### Scheme (BUN-163; ERP engine: BUN-248)
 
-`link_id`, `name`, `kind` (`percent` | `amount` | `free_item` | `fixed_price`), `reward_value`,
-`min_spend`, `starts_at`, `ends_at`, `product_ids`, `category_ids`, `is_active`.
+The ERP has no general promotions engine yet (only occasion offers, group discounts and restaurant offers). BUN-248 adds one. Shape of `GET /schemes`:
+
+| Field                          | Type                                                                   | Notes                                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `link_id`, `name`              | uuid, string                                                           |                                                                                               |
+| `description`                  | string, null                                                           | Short customer-facing text, e.g. "Buy 2 fish buns, get 1 free"                                |
+| `kind`                         | `percent` \| `amount` \| `fixed_price` \| `buy_x_get_y` \| `free_item` |                                                                                               |
+| `reward_value`                 | decimal string, null                                                   | Percent, amount off or fixed price                                                            |
+| `buy_quantity`, `get_quantity` | integer, null                                                          | `buy_x_get_y`                                                                                 |
+| `free_sku_id`                  | uuid, null                                                             | `free_item`                                                                                   |
+| `min_spend`                    | decimal string, null                                                   |                                                                                               |
+| `starts_at`, `ends_at`         | ISO datetime, null                                                     | The storefront hides offers outside this window; the ERP must never apply them                |
+| `product_ids`, `category_ids`  | uuid[]                                                                 | Category targets include sub-categories. Both empty = whole-order scheme                      |
+| `audience`                     | `everyone` \| `customer_groups`                                        | Customer-only schemes are never shown publicly; the quote applies them for eligible customers |
+| `is_active`                    | boolean                                                                |                                                                                               |
+
+The list may include inactive or ended schemes; the storefront filters them. Only schemes for the online channel should be returned.
+
+### Quote (`POST /prices/quote`, BUN-163)
+
+The ERP scheme engine's evaluation of a basket. Read-only (the storefront retries it like a GET). Request:
+
+```json
+{
+  "customer_link_id": null,
+  "lines": [{ "product_link_id": "…", "sku_link_id": "…", "quantity": 3 }]
+}
+```
+
+Response `data`:
+
+| Field             | Notes                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `currency`        |                                                                                                                                 |
+| `lines[]`         | Same order as the request: `product_link_id`, `sku_link_id`, `quantity`, `unit_price`, `discount`, `line_total`, `scheme_ids[]` |
+| `applied_schemes` | `[{ scheme_id, name, description, discount }]`: every scheme applied, with its total saving (line and order level)              |
+| `free_items`      | `[{ scheme_id, product_link_id, sku_link_id, product_name, sku_label, quantity }]`                                              |
+| `subtotal`        | Before discounts                                                                                                                |
+| `discount_total`  | Line plus order-level discounts                                                                                                 |
+| `total`           | `subtotal − discount_total` (before delivery)                                                                                   |
+
+The same evaluation must be used when the order is placed (BUN-244), so the cart and the order always match.
 
 ### Customer (`PosCustomer`)
 

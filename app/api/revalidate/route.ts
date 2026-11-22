@@ -14,6 +14,7 @@ import { serverEnv } from "@/lib/env.server";
  *   { "type": "product",  "slug": "<product slug>" }   one product changed (price, text, …)
  *   { "type": "category", "slug": "<category slug>" }  one category changed
  *   { "type": "home" }                                  home page merchandising changed
+ *   { "type": "schemes" }                               a scheme / offer was added, changed or ended
  *   { "type": "all" }                                   refresh the whole catalog
  *
  * Pages keep serving the old version until the fresh one is ready
@@ -24,6 +25,7 @@ const bodySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("product"), slug: z.string().min(1) }),
   z.object({ type: z.literal("category"), slug: z.string().min(1) }),
   z.object({ type: z.literal("home") }),
+  z.object({ type: z.literal("schemes") }),
   z.object({ type: z.literal("all") }),
 ]);
 
@@ -38,6 +40,9 @@ function tagsFor(request: RevalidateRequest): string[] {
       return [cacheTags.category(request.slug), cacheTags.categories];
     case "home":
       return [cacheTags.home];
+    case "schemes":
+      // Offer badges on every product list and product page.
+      return [cacheTags.schemes];
     case "all":
       return [cacheTags.catalog];
   }

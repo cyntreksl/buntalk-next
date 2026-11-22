@@ -13,4 +13,6 @@ export const cacheTags = {
   category: (slug: string) => `category:${slug}`,
   products: "products",
   product: (slug: string) => `product:${slug}`,
+  /** Active schemes / offers (product badges, offers page). */
+  schemes: "schemes",
 } as const;

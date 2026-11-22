@@ -681,6 +681,27 @@ The storefront never calculates a price. It shows and charges exactly what the E
 - **Price changes:** the ERP calls the revalidate webhook for the product, and pages update. The cart picks up a new price straight away, because it reads live.
 - **Placing an order** (BUN-164 / BUN-201) must call `priceCart()` again on the server, and the ERP re-prices the order itself (BUN-244).
 
+### Offers (ERP schemes)
+
+Discounts and promotions come from the ERP scheme engine. The storefront shows them, but never applies a discount itself.
+
+- **Badges:**
+  - Product cards and product pages show the offers that apply to the product, for example "Buy 2 get 1 free" or "10% off". These are schemes on the product, or on its category or a parent category (`lib/offers.ts`).
+  - Whole-order offers, such as "LKR 500 off orders over LKR 10,000", aren't product badges.
+  - Customer-only schemes are never advertised.
+- **Dates:**
+  - `getActiveSchemes()` leaves out inactive and ended schemes. It is cached briefly (the `schemes` profile: refreshed every 5 minutes).
+  - In the browser, `OfferBadges` also hides any offer outside its start and end time, minute by minute. A cached page can never show an expired offer, and a scheduled offer appears on time.
+- **Cart and checkout:**
+  - The server sends the cart to the ERP's `POST /prices/quote` (`lib/erp/quote.ts`), live and never cached. It shows exactly what the ERP returns:
+    - each line's discount and which scheme gave it
+    - order-level offers and free items
+    - subtotal, discounts and total
+  - The same evaluation applies to the order, so the cart matches what the customer is charged. An expired or inactive scheme is never applied.
+- **Changes:** when a scheme is added, changed or ended, the ERP calls the revalidate webhook with `{"type":"schemes"}`. That refreshes the badges on every page.
+
+The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock ERP has a small stand-in engine with test schemes: a buy-2-get-1 offer, a 10% cake week, LKR 500 off over LKR 10,000, and ones that must never apply (expired, inactive, future, customer-only).
+
 ### Updates from the ERP
 
 - **On a timer:** catalog pages refresh every 15 minutes.
@@ -690,6 +711,7 @@ The storefront never calculates a price. It shows and charges exactly what the E
   | ---------------------------------------- | ------------------------------ |
   | A product is added or edited             | `{"type":"product","slug":…}`  |
   | A category is added, edited or reordered | `{"type":"category","slug":…}` |
+  | A scheme / offer changes                 | `{"type":"schemes"}`           |
   | Everything                               | `{"type":"all"}`               |
 
 ### Mock ERP

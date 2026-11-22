@@ -127,16 +127,80 @@ export const erpBannerSchema = z.object({
 export const erpSchemeSchema = z.object({
   link_id: uuid,
   name: z.string(),
-  kind: z.enum(["percent", "amount", "free_item", "fixed_price"]),
-  reward_value: money,
-  min_spend: money.nullable(),
-  starts_at: isoDateTime.nullable(),
-  ends_at: isoDateTime.nullable(),
-  /** Product link_ids the scheme applies to; empty = all products. */
+  /** NEW: short customer-facing text, e.g. "Buy 2 fish buns, get 1 free". */
+  description: z.string().nullable().optional(),
+  kind: z.enum(["percent", "amount", "free_item", "fixed_price", "buy_x_get_y"]),
+  /** Percent, amount off, or the fixed price. Null for free_item / buy_x_get_y. */
+  reward_value: money.nullable().optional(),
+  /** buy_x_get_y: buy this many… */
+  buy_quantity: z.number().int().positive().nullable().optional(),
+  /** …get this many free. */
+  get_quantity: z.number().int().positive().nullable().optional(),
+  /** free_item: the SKU given free. */
+  free_sku_id: uuid.nullable().optional(),
+  min_spend: money.nullable().optional(),
+  starts_at: isoDateTime.nullable().optional(),
+  ends_at: isoDateTime.nullable().optional(),
+  /** Product link_ids the scheme applies to. Empty with no categories = whole order. */
   product_ids: z.array(uuid).default([]),
-  /** Category link_ids the scheme applies to. */
+  /** Category link_ids the scheme applies to (and their sub-categories). */
   category_ids: z.array(uuid).default([]),
+  /**
+   * NEW: who can get it. "everyone", or "customer_groups" (group discounts,
+   * birthday offers): only shown to and applied for eligible customers.
+   */
+  audience: z.enum(["everyone", "customer_groups"]).default("everyone"),
   is_active: z.boolean(),
+});
+
+/** NEW: POST /prices/quote, the ERP's evaluation of a basket. */
+export const erpQuoteLineSchema = z.object({
+  product_link_id: uuid,
+  sku_link_id: uuid.nullable().optional(),
+  quantity: z.number().positive(),
+  unit_price: money,
+  /** Discount on this line from line-level schemes (0 if none). */
+  discount: money,
+  /** quantity × unit_price − discount. */
+  line_total: money,
+  /** Schemes that gave this line's discount. */
+  scheme_ids: z.array(uuid).default([]),
+});
+
+export const erpQuoteSchema = z.object({
+  currency: z.string().length(3),
+  /** Same order as the request lines. */
+  lines: z.array(erpQuoteLineSchema),
+  /** Every scheme applied, with how much it saved in total (line and order level). */
+  applied_schemes: z
+    .array(
+      z.object({
+        scheme_id: uuid,
+        name: z.string(),
+        description: z.string().nullable().optional(),
+        discount: money,
+      }),
+    )
+    .default([]),
+  /** Free items given by schemes (free_item, or buy_x_get_y on a different SKU). */
+  free_items: z
+    .array(
+      z.object({
+        scheme_id: uuid,
+        product_link_id: uuid,
+        sku_link_id: uuid.nullable().optional(),
+        product_name: z.string(),
+        sku_label: z.string().nullable().optional(),
+        quantity: z.number().positive(),
+      }),
+    )
+    .default([]),
+  /** Sum of quantity × unit_price, before discounts. */
+  subtotal: money,
+  /** Line discounts plus order-level discounts. */
+  discount_total: money,
+  /** What the customer pays for the items (before delivery). */
+  total: money,
 });
 
 /** Customer (PosCustomer). */
@@ -199,6 +263,7 @@ export type ErpSku = z.infer<typeof erpSkuSchema>;
 export type ErpProduct = z.infer<typeof erpProductSchema>;
 export type ErpBanner = z.infer<typeof erpBannerSchema>;
 export type ErpScheme = z.infer<typeof erpSchemeSchema>;
+export type ErpQuote = z.infer<typeof erpQuoteSchema>;
 export type ErpCustomer = z.infer<typeof erpCustomerSchema>;
 export type ErpOrder = z.infer<typeof erpOrderSchema>;
 export type ErpOrderLine = z.infer<typeof erpOrderLineSchema>;
