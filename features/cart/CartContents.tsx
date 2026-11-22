@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { Button, Card, QuantityStepper, Skeleton } from "@/components/ui";
 import { formatPrice } from "@/lib/utils";
 import { useCartStore } from "./store";
@@ -15,7 +15,13 @@ const useIsClient = () =>
     () => false,
   );
 
-export function CartContents() {
+/**
+ * The cart's items with quantity steppers and the total.
+ * `empty` is shown when the cart has no items (the cart page passes an empty
+ * state with category suggestions); `footer` (e.g. the checkout button) only
+ * shows when there are items.
+ */
+export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: ReactNode } = {}) {
   const isClient = useIsClient();
   const items = useCartStore((state) => state.items);
   const setQuantity = useCartStore((state) => state.setQuantity);
@@ -30,7 +36,9 @@ export function CartContents() {
       </div>
     );
   }
-  if (items.length === 0) return <p className="text-muted-foreground">Your cart is empty.</p>;
+  if (items.length === 0) {
+    return empty ?? <p className="text-muted-foreground">Your cart is empty.</p>;
+  }
 
   // Display total only. The real total is recalculated from the ERP at checkout.
   const currency = "LKR";
@@ -72,6 +80,7 @@ export function CartContents() {
         ))}
       </ul>
       <p className="text-body-lg text-right font-bold">Total: {formatPrice(total, currency)}</p>
+      {footer}
     </div>
   );
 }

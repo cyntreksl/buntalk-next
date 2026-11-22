@@ -1,29 +1,25 @@
-import Link from "next/link";
-import { Container } from "@/components/layout/Container";
+import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/PageShell";
 import { SiteFooter } from "@/components/layout/footer/SiteFooter";
 import { SiteHeader } from "@/components/layout/header/SiteHeader";
-import { buttonClasses } from "@/components/ui";
+import { NotFoundContent } from "@/features/content/NotFoundContent";
 
-/** 404 page, shown inside the normal site header and footer. */
+export const metadata: Metadata = {
+  title: "Page not found",
+};
+
+/**
+ * 404 for URLs that match no route at all. These skip the (site) layout, so
+ * this page adds the site header and footer itself.
+ *
+ * notFound() called inside a (site) page (e.g. a product that no longer
+ * exists) uses app/(site)/not-found.tsx instead, which is already inside the
+ * site layout. Both return HTTP 404.
+ */
 export default function NotFound() {
   return (
     <PageShell header={<SiteHeader />} footer={<SiteFooter />}>
-      <Container width="content" className="flex flex-col items-start gap-4 py-16 md:py-24">
-        <p className="text-caption text-primary font-bold tracking-wider uppercase">404</p>
-        <h1 className="text-h1">We couldn&apos;t find that page</h1>
-        <p className="text-muted-foreground max-w-prose">
-          The link may be old, or the product may no longer be available.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Link href="/" className={buttonClasses()}>
-            Go to the home page
-          </Link>
-          <Link href="/search" className={buttonClasses({ variant: "outline" })}>
-            Search products
-          </Link>
-        </div>
-      </Container>
+      <NotFoundContent />
     </PageShell>
   );
 }

@@ -11,6 +11,7 @@ export { Button, buttonClasses, type ButtonSize, type ButtonVariant } from "./Bu
 export { Card, CardDescription, CardTitle } from "./Card";
 export { Checkbox, Radio, RadioGroup } from "./Choice"; // client
 export { Dialog, Drawer } from "./Dialog"; // client
+export { EmptyState } from "./EmptyState";
 export { FormField, useFormField } from "./FormField"; // client
 export { Input, Textarea } from "./Input"; // client
 export { Pagination, pageRange } from "./Pagination";

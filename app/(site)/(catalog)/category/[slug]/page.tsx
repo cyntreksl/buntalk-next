@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingTemplate } from "@/components/layout/templates";
+import { BagIcon, EmptyState, buttonClasses } from "@/components/ui";
 import { CategoryNav, ProductGrid } from "@/features/catalog";
 import { getCategories, getCategory, getProductsByCategory } from "@/lib/erp";
 
@@ -23,7 +25,7 @@ export async function generateMetadata({
 }: PageProps<"/category/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const category = await getCategory(slug);
-  if (!category) return {};
+  if (!category) return { title: "Page not found" };
   return { title: category.name, description: category.description };
 }
 
@@ -49,7 +51,21 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
         </p>
       }
     >
-      <ProductGrid products={products} />
+      <ProductGrid
+        products={products}
+        empty={
+          <EmptyState
+            icon={<BagIcon size={32} />}
+            title="No products here yet"
+            description={<p>This category is empty right now. Try another category or search.</p>}
+            actions={
+              <Link href="/search" className={buttonClasses({ variant: "outline" })}>
+                Search products
+              </Link>
+            }
+          />
+        }
+      />
     </ListingTemplate>
   );
 }
