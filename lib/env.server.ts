@@ -24,6 +24,14 @@ const serverSchema = z.object({
   ERP_TIMEOUT_MS: optional(z.coerce.number().int().min(1000).max(60_000)),
   // Shared secret the ERP sends when it calls /api/revalidate
   REVALIDATE_SECRET: optional(z.string().min(16)),
+  // Storefront database (orders, ERP submission queue): postgres://user:pass@host:5432/db
+  DATABASE_URL: optional(z.string().regex(/^postgres(ql)?:\/\//, "a postgres:// URL")),
+  // Local only, without DATABASE_URL: folder for the embedded PGlite database (default .data/pglite)
+  PGLITE_DIR: optional(z.string()),
+  // Secret for the order operations endpoints (retry queue, failed orders), at least 16 characters
+  ORDERS_OPS_SECRET: optional(z.string().min(16)),
+  // Optional: Slack/Teams-compatible incoming webhook for order alerts ({ "text": … })
+  ALERT_WEBHOOK_URL: optional(z.url()),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -68,4 +76,22 @@ export function erpConfig(): ErpConfig | null {
  */
 export function isSampleCatalogEnabled(): boolean {
   return erpConfig() === null && publicEnv.NEXT_PUBLIC_APP_ENV === "local";
+}
+
+export type DatabaseConfig = { kind: "postgres"; url: string } | { kind: "pglite"; dir: string };
+
+/**
+ * Where the storefront database lives.
+ * - DATABASE_URL set: PostgreSQL (staging and production must set it).
+ * - Local development without it: an embedded PGlite database in a folder.
+ *   PGlite is real Postgres compiled to WebAssembly, so the schema and SQL
+ *   are the same.
+ */
+export function databaseConfig(): DatabaseConfig {
+  const { DATABASE_URL, PGLITE_DIR } = serverEnv();
+  if (DATABASE_URL) return { kind: "postgres", url: DATABASE_URL };
+  if (publicEnv.NEXT_PUBLIC_APP_ENV !== "local") {
+    throw new Error("DATABASE_URL is required outside local development (see .env.example).");
+  }
+  return { kind: "pglite", dir: PGLITE_DIR ?? ".data/pglite" };
 }

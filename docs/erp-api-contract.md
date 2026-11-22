@@ -178,6 +178,58 @@ Response `data`:
 
 The same evaluation must be used when the order is placed (BUN-244), so the cart and the order always match.
 
+### Orders (BUN-164; ERP side: BUN-244)
+
+The storefront saves every order first, then sends it with two idempotent writes. Each write's `Idempotency-Key` is derived from the order, and the same key is used on every retry.
+
+1. `POST /customers`: `{ name, phone, email, source: "storefront" }`. Match by phone (then email), or create. Returns the Customer. Skipped when the shopper is signed in and their `link_id` is known.
+2. `POST /orders`:
+
+```json
+{
+  "storefront_order_id": "uuid",
+  "storefront_order_number": "BT-261122-7K3QX",
+  "customer_link_id": "…",
+  "channel": "online",
+  "fulfilment": {
+    "type": "delivery",
+    "address": { "line1": "…", "line2": null, "city": "…", "notes": null },
+    "date": "2026-11-23",
+    "slot": "10:00-12:00"
+  },
+  "lines": [
+    {
+      "product_link_id": "…",
+      "sku_link_id": null,
+      "quantity": 3,
+      "unit_price": "120.00",
+      "discount": "120.00",
+      "line_total": "240.00",
+      "scheme_ids": ["…"]
+    }
+  ],
+  "applied_scheme_ids": ["…"],
+  "currency": "LKR",
+  "subtotal": "360.00",
+  "discount_total": "120.00",
+  "delivery_fee": "0.00",
+  "total": "240.00",
+  "payment": { "method": "cash_on_delivery", "status": "pending" },
+  "note": null
+}
+```
+
+For pickup, `fulfilment` is `{ "type": "pickup", "outlet_link_id": "…", "date": …, "slot": … }`.
+
+| ERP answer                 | Storefront                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 201 / 200 + Order          | Stores the ERP `link_id` and `number`. A repeated key must return the same order, never a new one        |
+| 409                        | ERP total differs after re-pricing, or the slot is full: marked **rejected**, team alerted (not retried) |
+| 422                        | Invalid data: **rejected**, team alerted                                                                 |
+| 401/403, 429, 5xx, timeout | Temporary: **failed**, retried with the same key (1, 2, 4 … minutes, up to 8 attempts)                   |
+
+Delivery fees, areas and slots don't exist in the ERP yet (BUN-251), so the storefront sends `delivery_fee: "0.00"`. Cake Studio cakes as order lines need BUN-252.
+
 ### Customer (`PosCustomer`)
 
 `link_id`, `code`, `name`, `phone`, `email`, `is_active`.
@@ -213,6 +265,11 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-244 | Online orders: model, place, status                      | BUN-164, BUN-165, BUN-201 |
 | BUN-245 | Sales outlets endpoint                                   | BUN-201                   |
 | BUN-246 | Revalidate webhook calls from the ERP                    | BUN-167                   |
+| BUN-247 | Customer-specific prices (customer group price levels)   | BUN-162, BUN-196          |
+| BUN-248 | Promotions scheme engine (shared by POS and web)         | BUN-163, BUN-208, BUN-242 |
+| BUN-250 | Ingredients, allergens and dietary tags per product      | BUN-249                   |
+| BUN-251 | Delivery areas, delivery fees and time slots             | BUN-164, BUN-199          |
+| BUN-252 | Cake Studio cakes as lines of an online order            | BUN-164, BUN-184          |
 
 ## 6. Open questions for the ERP team
 

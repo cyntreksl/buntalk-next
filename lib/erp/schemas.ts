@@ -214,7 +214,9 @@ export const erpCustomerSchema = z.object({
 });
 
 export const erpOrderLineSchema = z.object({
-  sku_link_id: uuid,
+  product_link_id: uuid.optional(),
+  /** Null for a product without sizes/variants. */
+  sku_link_id: uuid.nullable().optional(),
   product_name: z.string(),
   sku_label: z.string().nullable().optional(),
   quantity: money,
@@ -223,7 +225,7 @@ export const erpOrderLineSchema = z.object({
   line_total: money,
 });
 
-/** Online order (to be created through the order API, BUN-164). */
+/** Online order, created through POST /orders (BUN-164). */
 export const erpOrderSchema = z.object({
   link_id: uuid,
   number: z.string(),

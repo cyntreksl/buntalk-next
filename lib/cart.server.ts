@@ -46,6 +46,8 @@ export type PricedCartLine = {
   /** Stable key for this line in the browser cart: product, plus size if any. */
   key: string;
   productSlug: string;
+  /** ERP product link_id (null only for local sample data). */
+  productId: string | null;
   skuId?: string;
   name: string;
   /** "1 kg", for a product with sizes/variants. */
@@ -102,6 +104,7 @@ function priceLine(
   return {
     key: lineKey(product.slug, sku?.id),
     productSlug: product.slug,
+    productId: product.id ?? null,
     skuId: sku?.id,
     name: product.name,
     variant: sku && sku.options.length > 0 ? variantLabel(sku.options) : undefined,

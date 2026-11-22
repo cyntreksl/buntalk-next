@@ -122,7 +122,9 @@ export type OrderStatus =
   "pending" | "confirmed" | "preparing" | "ready" | "dispatched" | "completed" | "cancelled";
 
 export type OrderLine = {
-  skuId: string;
+  productId?: string;
+  /** Undefined for a product without sizes/variants. */
+  skuId?: string;
   productName: string;
   skuLabel?: string;
   quantity: number;

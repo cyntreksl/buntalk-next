@@ -10,6 +10,8 @@ const PRIVATE_PATHS = ["/cart", "/checkout", "/account"];
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // Loaded from node_modules at runtime (WebAssembly / native driver), not bundled.
+  serverExternalPackages: ["@electric-sql/pglite", "pg"],
   partialPrefetching: true,
 
   /**
