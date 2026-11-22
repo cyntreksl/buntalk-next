@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ListingTemplate } from "@/components/layout/templates";
 import { BagIcon, EmptyState, buttonClasses } from "@/components/ui";
 import { CategoryNav, ProductGrid } from "@/features/catalog";
+import { categoryTrail } from "@/lib/categories";
 import { getCategories, getCategory, getProductsByCategory } from "@/lib/erp";
 
 // Category: listing template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
@@ -42,7 +43,14 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
     <ListingTemplate
       title={category.name}
       description={category.description}
-      breadcrumb={[{ label: "Home", href: "/" }, { label: category.name }]}
+      breadcrumb={[
+        { label: "Home", href: "/" },
+        // Parent categories first, then this one (not a link: it is the current page).
+        ...categoryTrail(categories, category.slug)
+          .slice(0, -1)
+          .map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
+        { label: category.name },
+      ]}
       sidebarTitle="Categories"
       sidebar={<CategoryNav categories={categories} current={category.slug} />}
       toolbar={

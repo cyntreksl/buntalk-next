@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "mock:erp": "node scripts/mock-erp.mjs",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
     "prepare": "husky"
   },

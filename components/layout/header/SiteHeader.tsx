@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
+import { buildCategoryTree } from "@/lib/categories";
 import { getNavigationCategories } from "@/lib/erp";
 import { AccountMenu } from "./AccountMenu";
 import { CartButton } from "./CartButton";
@@ -25,7 +26,8 @@ import { StickyHeader } from "./StickyHeader";
  * Heights match --header-height in styles/globals.css (64px; 112px from lg).
  */
 export async function SiteHeader() {
-  const categories = await getNavigationCategories();
+  // Category tree in the ERP's order (top level, with sub-categories).
+  const categories = buildCategoryTree(await getNavigationCategories());
   const languageSwitcher = <LanguageSwitcher />;
 
   return (

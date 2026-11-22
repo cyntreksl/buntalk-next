@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { accountNav } from "@/features/account/nav";
 import { Drawer, MenuIcon } from "@/components/ui";
-import type { Category } from "@/lib/erp";
+import type { CategoryNode } from "@/lib/erp";
 import { cx } from "@/lib/utils";
 import { useSessionStatus } from "./AccountMenu";
 
@@ -22,7 +22,8 @@ export function MobileNav({
   search,
   languageSwitcher,
 }: {
-  categories: Category[];
+  /** Category tree in ERP order. */
+  categories: CategoryNode[];
   search: ReactNode;
   languageSwitcher: ReactNode;
 }) {
@@ -73,6 +74,24 @@ export function MobileNav({
                     >
                       {category.name}
                     </Link>
+                    {category.children.length > 0 && (
+                      <ul className="border-border ml-3 border-l pl-2">
+                        {category.children.map((child) => {
+                          const childHref = `/category/${child.slug}`;
+                          return (
+                            <li key={child.slug}>
+                              <Link
+                                href={childHref}
+                                aria-current={pathname === childHref ? "page" : undefined}
+                                className={cx(itemClasses(childHref), "text-body-sm font-semibold")}
+                              >
+                                {child.name}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}

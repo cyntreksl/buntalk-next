@@ -27,11 +27,13 @@ export {
 export type {
   Banner,
   Category,
+  CategoryNode,
   Customer,
   Order,
   OrderLine,
   OrderStatus,
   Product,
+  ProductAttribute,
   ProductOption,
   Scheme,
   Sku,

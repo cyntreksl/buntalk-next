@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { cacheTags } from "@/lib/cache-tags";
+import { descendantSlugs, sortByErpOrder } from "@/lib/categories";
 import { isSampleCatalogEnabled } from "@/lib/env.server";
 import { isOnOffer } from "@/lib/pricing";
 import { ErpNotFoundError } from "./errors";
@@ -37,9 +38,10 @@ export async function getCategories(): Promise<Category[]> {
   cacheLife("catalog");
   cacheTag(cacheTags.catalog, cacheTags.categories);
 
-  if (isSampleCatalogEnabled()) return sampleCategories;
+  // All active categories (every level), in the ERP's display order.
+  if (isSampleCatalogEnabled()) return sortByErpOrder(sampleCategories);
   const { data } = await erpGet("/categories", listOf(erpCategorySchema));
-  return active(data).map(toCategory);
+  return sortByErpOrder(active(data).map(toCategory));
 }
 
 /**
@@ -76,10 +78,15 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
   cacheLife("catalog");
   cacheTag(cacheTags.catalog, cacheTags.products, cacheTags.category(categorySlug));
 
+  // Includes products in sub-categories, so a parent category page isn't empty.
   if (isSampleCatalogEnabled()) {
-    return sampleProducts.filter((p) => p.categorySlug === categorySlug);
+    const slugs = descendantSlugs(sampleCategories, categorySlug);
+    return sampleProducts.filter((p) => slugs.includes(p.categorySlug));
   }
-  const { data } = await erpGet("/products", listOf(erpProductSchema), { category: categorySlug });
+  const { data } = await erpGet("/products", listOf(erpProductSchema), {
+    category: categorySlug,
+    include_subcategories: 1,
+  });
   return active(data).map(toProduct);
 }
 

@@ -26,7 +26,15 @@ export function toCategory(c: ErpCategory): Category {
     name: c.name,
     description: c.description ?? "",
     imageUrl: orUndefined(c.image_url),
+    parentId: orUndefined(c.parent_link_id),
+    sortOrder: c.sort_order,
   };
+}
+
+/** Main image first, then gallery images; anything that isn't a valid absolute URL is dropped. */
+function productImages(p: ErpProduct): string[] {
+  const urls = [p.image_url, ...p.gallery_urls].filter((u): u is string => Boolean(u));
+  return [...new Set(urls)].filter((u) => URL.canParse(u) && /^https?:/.test(u));
 }
 
 export function toSku(s: ErpSku): Sku {
@@ -52,7 +60,10 @@ export function toProduct(p: ErpProduct): Product {
     currency: p.price.currency,
     categorySlug: p.category.slug,
     featured: p.is_featured,
-    imageUrls: p.image_urls,
+    code: p.code,
+    imageUrls: productImages(p),
+    attributes: p.attributes.filter((a) => a.values.length > 0),
+    processingTimeHours: orUndefined(p.processing_time_hours),
     skus: p.skus.filter((s) => s.is_active).map(toSku),
   };
 }

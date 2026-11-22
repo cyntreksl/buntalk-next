@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { topLevelCategories } from "@/lib/categories";
 import { getNavigationCategories } from "@/lib/erp";
 
 /**
@@ -12,7 +13,7 @@ export async function CategorySuggestions({
   title?: string;
   limit?: number;
 }) {
-  const categories = (await getNavigationCategories()).slice(0, limit);
+  const categories = topLevelCategories(await getNavigationCategories()).slice(0, limit);
   if (categories.length === 0) return null;
   return (
     <nav aria-label={title} className="flex flex-col items-center gap-3">
