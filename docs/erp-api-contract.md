@@ -83,6 +83,7 @@ tables today.
 | `name`           | string       |                                                                                                                      |
 | `description`    | string, null | **NEW**                                                                                                              |
 | `image_url`      | url, null    | **NEW**. Absolute URL                                                                                                |
+| `banner_url`     | url, null    | **NEW** (BUN-168, ticket BUN-238). Wide banner for the category page (about 2400×600). Falls back to `image_url`     |
 | `parent_link_id` | uuid, null   | **NEW** (BUN-160). Parent category; null = top level. Today categories are flat                                      |
 | `sort_order`     | integer      | **NEW** (BUN-160). Display order, lower first. The storefront shows categories in exactly this order                 |
 | `is_active`      | boolean      |                                                                                                                      |

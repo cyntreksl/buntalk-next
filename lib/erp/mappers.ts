@@ -27,6 +27,7 @@ export function toCategory(c: ErpCategory): Category {
     name: c.name,
     description: c.description ?? "",
     imageUrl: orUndefined(c.image_url),
+    bannerUrl: orUndefined(c.banner_url),
     parentId: orUndefined(c.parent_link_id),
     sortOrder: c.sort_order,
   };

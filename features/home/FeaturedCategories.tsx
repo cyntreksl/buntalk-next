@@ -13,7 +13,11 @@ export function FeaturedCategories({ categories }: { categories: Category[] }) {
   if (categories.length === 0) return null;
   return (
     <div>
-      <SectionHeading id="categories" title="Explore our categories" />
+      <SectionHeading
+        id="categories"
+        title="Explore our categories"
+        viewAll={{ href: "/categories", label: "View all" }}
+      />
       <ScrollRow label="Categories">
         {categories.slice(0, 16).map((category) => (
           <li key={category.slug} className="shrink-0 snap-start">

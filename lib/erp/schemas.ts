@@ -44,8 +44,10 @@ export const erpCategorySchema = z.object({
   name: z.string(),
   /** NEW */
   description: z.string().nullable().optional(),
-  /** NEW: absolute image URL. */
+  /** NEW: absolute image URL (square: category tiles and circles). */
   image_url: imageUrl,
+  /** NEW (BUN-168): wide banner for the category page header. Falls back to image_url. */
+  banner_url: imageUrl,
   /** NEW: parent category's link_id; null for a top-level category. */
   parent_link_id: uuid.nullable().optional(),
   /** NEW: display order set in the ERP (lower first). The storefront never re-sorts. */
