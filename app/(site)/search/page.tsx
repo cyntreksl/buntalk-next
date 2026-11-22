@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 import { Suspense } from "react";
 import { ListingTemplate } from "@/components/layout/templates";
 import { Button, EmptyState, Input, SearchIcon } from "@/components/ui";
 import { ProductGridSkeleton } from "@/features/catalog";
 import { ProductListing } from "@/features/catalog/ProductListing";
 import { CategorySuggestions } from "@/features/catalog/CategorySuggestions";
+import { getDb } from "@/lib/db";
 import { searchProducts } from "@/lib/erp";
+import { recordSearchMiss } from "@/lib/search-misses";
 
-// Search: listing template without a sidebar. Dynamic: the page frame is static;
-// results depend on ?q= so they render per request. Results per query are cached
-// briefly ("search" profile).
+// Search (BUN-172): listing template without a sidebar. Dynamic: the page frame
+// is static; results depend on ?q= so they render per request. Results per query
+// are cached briefly ("search" profile). Search is typo-tolerant and only finds
+// products shown online (lib/search.ts).
 
 export const metadata: Metadata = {
   title: "Search",
@@ -33,6 +37,14 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
 
   const products = await searchProducts(query);
   if (products.length === 0) {
+    // Count it for the team (GET /api/search/misses), after the page is sent.
+    after(async () => {
+      try {
+        await recordSearchMiss(await getDb(), query);
+      } catch (error) {
+        console.error("[search] Could not record a no-result search.", error);
+      }
+    });
     return (
       <EmptyState
         icon={<SearchIcon size={32} />}
@@ -40,7 +52,9 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
         description={
           <div role="status" className="flex flex-col gap-1">
             <p>We couldn&apos;t find any products matching your search.</p>
-            <p className="text-body-sm">Check the spelling, try a shorter word, or browse below.</p>
+            <p className="text-body-sm">
+              Try a shorter or more general word, or browse our popular categories.
+            </p>
           </div>
         }
       >

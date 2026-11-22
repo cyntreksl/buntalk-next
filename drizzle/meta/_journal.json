@@ -29,6 +29,13 @@
       "when": 1795365724117,
       "tag": "0003_catalog_freshness",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795370476541,
+      "tag": "0004_search_misses",
+      "breakpoints": true
     }
   ]
 }

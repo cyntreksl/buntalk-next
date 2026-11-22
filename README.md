@@ -446,7 +446,7 @@ Shared pieces:
 | Part       | Phone / tablet (below `lg`)                                   | Desktop (`lg`+)                                                                                                      |
 | ---------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Navigation | ☰ button opens a drawer: categories, account links, language | "All categories" pill (mega-menu) plus links to the first 6 categories; "Cake Studio" and "Our outlets" on the right |
-| Search     | Pill search box in its own row under the logo, always visible | Wide pill search box between the logo and the account links (a plain form to `/search`)                              |
+| Search     | Pill search box in its own row under the logo, always visible | Wide pill search box between the logo and the account links (a form to `/search`, with type-ahead suggestions)       |
 | Cart       | Bag icon with item count                                      | Same, with a "Cart" label                                                                                            |
 | Account    | Person icon opens the account / sign-in menu                  | Same, with a "Sign in" or "Account" label                                                                            |
 | Language   | In the drawer                                                 | Slot next to the account menu (switcher comes with BUN-211)                                                          |
@@ -702,14 +702,14 @@ Tested by running the production build with `ERP_API_BASE_URL` pointing at a clo
 
 `EmptyState` (`components/ui`) always says what happened and offers a next step.
 
-| Where                     | Message                     | Next step                                                    |
-| ------------------------- | --------------------------- | ------------------------------------------------------------ |
-| Cart                      | "Your cart is empty"        | Start shopping, plus category links (checkout button hidden) |
-| Checkout order summary    | "Nothing to check out yet"  | Continue shopping                                            |
-| Search with no results    | "No results for …"          | Spelling tips and category links                             |
-| Search with no query      | "What are you looking for?" | Category links                                               |
-| Category with no products | "No products here yet"      | Search products                                              |
-| Account → Orders          | "No orders yet"             | Start shopping                                               |
+| Where                     | Message                     | Next step                                                       |
+| ------------------------- | --------------------------- | --------------------------------------------------------------- |
+| Cart                      | "Your cart is empty"        | Start shopping, plus category links (checkout button hidden)    |
+| Checkout order summary    | "Nothing to check out yet"  | Continue shopping                                               |
+| Search with no results    | "No results for …"          | Tips and popular categories; the search is counted for the team |
+| Search with no query      | "What are you looking for?" | Category links                                                  |
+| Category with no products | "No products here yet"      | Search products                                                 |
+| Account → Orders          | "No orders yet"             | Start shopping                                                  |
 
 ## ERP client
 
@@ -866,6 +866,18 @@ The quick "Add to cart" goes through the same server check as the product page (
 - **You may also like:** other products from the same category.
 
 Until the ERP sends `short_description`, size photos, weight and servings (ticket BUN-257), the page uses the description for both texts and leaves the rest out.
+
+### Search (BUN-172)
+
+- **Where:** the header search box (every page) and `/search?q=…`, which uses the same sortable, paginated listing as category pages.
+- **Suggestions while typing** (`components/layout/header/HeaderSearch.tsx`): after two letters, matching categories and up to six products (photo and price) appear, plus "See all results". ↓ ↑ and Enter pick one; Escape closes. The box is still a plain form, so Enter searches without JavaScript. Suggestions come from `GET /api/search/suggest?q=`, which answers in about 10–40 ms (no ERP call per keystroke); the box waits 120 ms after the last key.
+- **How it matches** (`lib/search.ts`): search runs on the storefront over the cached list of visible products (`getAllProducts()`), so hidden products are never found. Every word typed must match, as a whole word, the start of a word ("choc"), or with a small typo (one letter wrong, missing, extra or swapped for 4–7 letters, two for longer words: "sausge", "birthdy cak"). Name matches rank first, then the item code, category name and description; ties go to featured, then popular products.
+- **No results:** the page offers popular categories, ranked by their products' sales popularity (ERP order until the ERP sends popularity, BUN-256).
+- **"No result" searches are counted for the team** in the `search_misses` table (normalised words, a count and first/last seen; nothing about who searched). The same query within 3 seconds counts once. Read them with:
+
+```sh
+curl -H "Authorization: Bearer $ORDERS_OPS_SECRET" "https://<site>/api/search/misses?days=30&limit=100"
+```
 
 ### Missing images
 

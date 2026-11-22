@@ -287,3 +287,25 @@ export const jobState = pgTable("job_state", {
   value: jsonb().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------------------- */
+/* Search (BUN-172)                                                           */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Searches that found nothing, so the team can add products, names or
+ * synonyms people look for. One row per normalised query (lowercase, no
+ * punctuation, at most 100 characters); nothing about who searched.
+ */
+export const searchMisses = pgTable(
+  "search_misses",
+  {
+    query: text().primaryKey(),
+    count: integer().notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("search_misses_last_seen_idx").on(t.lastSeenAt)],
+);
+
+export type SearchMiss = typeof searchMisses.$inferSelect;
