@@ -1,70 +1,45 @@
-import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
-import { cacheTags } from "@/lib/cache-tags";
 import { serverEnv } from "@/lib/env.server";
+import { changeRequestSchema, tagsForEvents } from "@/lib/freshness/events";
+import { readSignedErpWebhook } from "@/lib/webhooks/signature";
 
 /**
- * On-demand revalidation webhook, called by the ERP when catalog data changes.
+ * On-demand revalidation webhook, called by the ERP when catalog data
+ * changes (BUN-160, signed since BUN-167).
  *
  *   POST /api/revalidate
- *   Authorization: Bearer <REVALIDATE_SECRET>
+ *   X-Erp-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with ERP_WEBHOOK_SECRET>
  *   Content-Type: application/json
  *
- *   { "type": "product",  "slug": "<product slug>" }   one product changed (price, text, …)
- *   { "type": "category", "slug": "<category slug>" }  one category changed
- *   { "type": "home" }                                  home page merchandising changed
- *   { "type": "schemes" }                               a scheme / offer was added, changed or ended
- *   { "type": "all" }                                   refresh the whole catalog
+ *   { "type": "product",  "slug": "<slug>", "previous_slug": "<old slug>"? }   price, text, visibility …
+ *   { "type": "category", "slug": "<slug>", "previous_slug": "<old slug>"? }   name, order, visibility …
+ *   { "type": "home" }        featured products
+ *   { "type": "banners" }     home page banners
+ *   { "type": "schemes" }     a scheme / offer was added, changed or ended
+ *   { "type": "all" }         bulk changes: refresh the whole catalog
+ *   { "events": [ …up to 200 of the above… ] }                              several at once
  *
- * Pages keep serving the old version until the fresh one is ready
- * (stale-while-revalidate), so visitors never wait for the refresh.
+ *   200 { revalidated: [tags] } · 401 unsigned, bad or old signature · 400 invalid body · 503 not configured
+ *
+ * Unsigned requests are rejected; a captured request can't be replayed after
+ * 5 minutes. Refreshing is idempotent, so the ERP may retry freely. Pages
+ * keep serving the old version until the fresh one is ready
+ * (stale-while-revalidate), so visitors never wait. If a webhook is missed,
+ * the scheduled catalog check (lib/freshness/check.ts) catches the change
+ * within 5 minutes.
  */
-
-const bodySchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("product"), slug: z.string().min(1) }),
-  z.object({ type: z.literal("category"), slug: z.string().min(1) }),
-  z.object({ type: z.literal("home") }),
-  z.object({ type: z.literal("schemes") }),
-  z.object({ type: z.literal("all") }),
-]);
-
-type RevalidateRequest = z.infer<typeof bodySchema>;
-
-function tagsFor(request: RevalidateRequest): string[] {
-  switch (request.type) {
-    case "product":
-      // Product lists (category pages, home, search) show the product too.
-      return [cacheTags.product(request.slug), cacheTags.products];
-    case "category":
-      return [cacheTags.category(request.slug), cacheTags.categories];
-    case "home":
-      return [cacheTags.home];
-    case "schemes":
-      // Offer badges on every product list and product page.
-      return [cacheTags.schemes];
-    case "all":
-      return [cacheTags.catalog];
-  }
-}
-
-function isAuthorized(request: Request, secret: string): boolean {
-  const header = request.headers.get("authorization") ?? "";
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const received = Buffer.from(header);
-  return received.length === expected.length && timingSafeEqual(received, expected);
-}
-
 export async function POST(request: Request) {
-  const secret = serverEnv().REVALIDATE_SECRET;
-  if (!secret) {
-    return Response.json({ error: "Revalidation is not configured" }, { status: 503 });
-  }
-  if (!isAuthorized(request, secret)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const signed = await readSignedErpWebhook(request, serverEnv().ERP_WEBHOOK_SECRET, "revalidate");
+  if (!signed.ok) return signed.response;
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  let json: unknown;
+  try {
+    json = JSON.parse(signed.body);
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsed = changeRequestSchema.safeParse(json);
   if (!parsed.success) {
     return Response.json(
       { error: "Invalid body", details: z.flattenError(parsed.error) },
@@ -72,8 +47,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const tags = tagsFor(parsed.data);
+  const tags = tagsForEvents(parsed.data);
   for (const tag of tags) revalidateTag(tag, "max");
-
-  return Response.json({ revalidated: tags });
+  console.info(`[freshness] webhook revalidated ${tags.join(", ")}`);
+  return Response.json({ revalidated: tags }, { headers: { "Cache-Control": "no-store" } });
 }

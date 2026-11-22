@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Signed ERP webhooks (BUN-165).
+ * Signed ERP webhooks (order status BUN-165, catalog revalidation BUN-167).
  *
  * The ERP signs the raw request body:
  *
@@ -48,4 +48,29 @@ export function verifySignature(
     return { ok: false, reason: "signature mismatch" };
   }
   return { ok: true };
+}
+
+/**
+ * Checks a signed ERP webhook request. Returns the raw body when the
+ * signature is valid, otherwise a ready-made error response
+ * (503 not configured, 401 missing/bad/old signature).
+ */
+export async function readSignedErpWebhook(
+  request: Request,
+  secret: string | undefined,
+  label: string,
+): Promise<{ ok: true; body: string } | { ok: false; response: Response }> {
+  if (!secret) {
+    return {
+      ok: false,
+      response: Response.json({ error: "ERP webhooks are not configured" }, { status: 503 }),
+    };
+  }
+  const body = await request.text();
+  const check = verifySignature(secret, body, request.headers.get(SIGNATURE_HEADER));
+  if (!check.ok) {
+    console.warn(`[webhooks] ${label} refused: ${check.reason}`);
+    return { ok: false, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  return { ok: true, body };
 }

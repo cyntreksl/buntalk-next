@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { statusLabel, statusTimeline } from "./status";
-import { signPayload, verifySignature } from "./webhook";
+import { signPayload, verifySignature } from "@/lib/webhooks/signature";
 
 describe("statusLabel", () => {
   it("uses customer words that depend on delivery or pickup", () => {

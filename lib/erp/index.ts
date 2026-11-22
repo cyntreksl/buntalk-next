@@ -39,6 +39,9 @@ export {
   type ErpOrderLineInput,
 } from "./orders";
 
+// Live catalog snapshot for the scheduled change check (BUN-167)
+export { getCatalogSnapshot, type CatalogSnapshot } from "./snapshot";
+
 // Storefront types
 export type {
   Banner,

@@ -28,6 +28,9 @@
  * Orders (BUN-164): POST …/customers, POST …/orders (Idempotency-Key required;
  *   a repeated key returns the first result), GET …/orders/{id}.
  *   GET /__mock/orders lists them; POST /__mock/fail {"count":2,"status":503}
+ * Catalog webhooks (BUN-167): with MOCK_STOREFRONT_URL and MOCK_ERP_WEBHOOK_SECRET set,
+ *   every /__mock/products|categories|schemes change sends a signed POST /api/revalidate
+ *   to the storefront (add ?webhook=0 to skip it and test the scheduled catalog check).
  * Customers (BUN-166): PUT …/customers/{id} (409 if the phone/email belongs to
  *   another customer, 404 if merged), GET …/customers/{id}. GET /__mock/customers
  *   lists them; POST /__mock/customers/merge {"from","into"} merges two.
@@ -45,7 +48,12 @@ const PORT = Number(process.env.MOCK_ERP_PORT ?? 4010);
 const API_KEY = process.env.MOCK_ERP_KEY ?? "mock-key";
 const TENANT = process.env.MOCK_ERP_TENANT ?? "buntalk";
 // Order status webhooks (BUN-165): where to send them and the shared signing secret.
-const STOREFRONT_WEBHOOK_URL = process.env.MOCK_STOREFRONT_WEBHOOK_URL ?? "";
+// MOCK_STOREFRONT_URL (e.g. http://localhost:3100) enables both webhooks: catalog
+// revalidation (BUN-167) and order status (BUN-165).
+const STOREFRONT_URL = (process.env.MOCK_STOREFRONT_URL ?? "").replace(/\/$/, "");
+const STOREFRONT_WEBHOOK_URL =
+  process.env.MOCK_STOREFRONT_WEBHOOK_URL ??
+  (STOREFRONT_URL ? `${STOREFRONT_URL}/api/webhooks/erp/order-status` : "");
 const WEBHOOK_SECRET = process.env.MOCK_ERP_WEBHOOK_SECRET ?? "";
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
@@ -344,7 +352,29 @@ function seed() {
   };
 }
 
-/** Signed order status webhook to the storefront (see lib/orders/webhook.ts). */
+/** Sends a signed webhook (lib/webhooks/signature.ts). Returns "status body" or why not. */
+async function sendSigned(url, payload) {
+  if (!url || !WEBHOOK_SECRET) return "not configured";
+  const body = JSON.stringify(payload);
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${body}`).digest("hex");
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Erp-Signature": `t=${t},v1=${v1}` },
+      body,
+    });
+    return `${res.status} ${await res.text()}`;
+  } catch (error) {
+    return `failed: ${error.message}`;
+  }
+}
+
+/** Catalog change → signed revalidate webhook to the storefront (BUN-167). */
+const sendRevalidate = (payload) =>
+  sendSigned(STOREFRONT_URL ? `${STOREFRONT_URL}/api/revalidate` : "", payload);
+
+/** Signed order status webhook to the storefront (see lib/webhooks/signature.ts). */
 async function sendStatusWebhook(order) {
   if (!STOREFRONT_WEBHOOK_URL || !WEBHOOK_SECRET) return "not configured";
   const body = JSON.stringify({
@@ -687,9 +717,31 @@ const server = createServer(async (req, res) => {
             : null;
     if (!list) return send(res, 404, { message: "Not Found" });
     const i = list.findIndex((x) => x[idField] === body[idField]);
+    const before = i >= 0 ? list[i] : null;
     if (i >= 0) list[i] = { ...list[i], ...body };
     else list.push(body);
-    return send(res, 200, { ok: true, item: list[i >= 0 ? i : list.length - 1] });
+    const item = list[i >= 0 ? i : list.length - 1];
+    // Like the real ERP (BUN-246): tell the storefront what changed, unless
+    // ?webhook=0 (simulates a lost webhook, for the scheduled catalog check).
+    let webhook = "skipped";
+    if (url.searchParams.get("webhook") !== "0") {
+      const kind =
+        path === "/__mock/products"
+          ? "product"
+          : path === "/__mock/categories"
+            ? "category"
+            : "schemes";
+      const event =
+        kind === "schemes"
+          ? { type: "schemes" }
+          : {
+              type: kind,
+              slug: item.slug,
+              ...(before && before.slug !== item.slug ? { previous_slug: before.slug } : {}),
+            };
+      webhook = await sendRevalidate(event);
+    }
+    return send(res, 200, { ok: true, item, webhook });
   }
 
   // Storefront API
