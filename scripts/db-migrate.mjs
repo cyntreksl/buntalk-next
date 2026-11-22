@@ -5,7 +5,7 @@
  *   npm run db:migrate
  *
  * Uses DATABASE_URL (PostgreSQL) when set, otherwise the local PGlite
- * database in PGLITE_DIR (default .data/pglite). Reads .env.local / .env when
+ * database in PGLITE_DIR (default node_modules/.cache/buntalk/pglite). Reads .env.local / .env when
  * present. Run it as a deploy step before starting a new version.
  */
 import { mkdirSync } from "node:fs";
@@ -31,7 +31,7 @@ if (url) {
   await pool.end();
   console.log("[db] PostgreSQL migrations applied");
 } else {
-  const dir = process.env.PGLITE_DIR || ".data/pglite";
+  const dir = process.env.PGLITE_DIR || "node_modules/.cache/buntalk/pglite";
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
   const { migrate } = await import("drizzle-orm/pglite/migrator");

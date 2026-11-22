@@ -28,9 +28,12 @@
  * Orders (BUN-164): POST …/customers, POST …/orders (Idempotency-Key required;
  *   a repeated key returns the first result), GET …/orders/{id}.
  *   GET /__mock/orders lists them; POST /__mock/fail {"count":2,"status":503}
+ *   POST /__mock/orders/status {"number":"WEB-1001","status":"preparing"} changes a status
+ *   and sends the signed webhook (set MOCK_STOREFRONT_WEBHOOK_URL and MOCK_ERP_WEBHOOK_SECRET).
  *   makes the next 2 writes fail, to test the retry queue.
  *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
+import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -38,6 +41,9 @@ import { join } from "node:path";
 const PORT = Number(process.env.MOCK_ERP_PORT ?? 4010);
 const API_KEY = process.env.MOCK_ERP_KEY ?? "mock-key";
 const TENANT = process.env.MOCK_ERP_TENANT ?? "buntalk";
+// Order status webhooks (BUN-165): where to send them and the shared signing secret.
+const STOREFRONT_WEBHOOK_URL = process.env.MOCK_STOREFRONT_WEBHOOK_URL ?? "";
+const WEBHOOK_SECRET = process.env.MOCK_ERP_WEBHOOK_SECRET ?? "";
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 const price = (selling, compareAt = null) => ({
@@ -322,6 +328,33 @@ function seed() {
   };
 }
 
+/** Signed order status webhook to the storefront (see lib/orders/webhook.ts). */
+async function sendStatusWebhook(order) {
+  if (!STOREFRONT_WEBHOOK_URL || !WEBHOOK_SECRET) return "not configured";
+  const body = JSON.stringify({
+    event: "order.status_changed",
+    data: {
+      link_id: order.link_id,
+      number: order.number,
+      storefront_order_number: order.storefront_order_number,
+      status: order.status,
+      changed_at: order.status_changed_at,
+    },
+  });
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${body}`).digest("hex");
+  try {
+    const res = await fetch(STOREFRONT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Erp-Signature": `t=${t},v1=${v1}` },
+      body,
+    });
+    return `${res.status} ${await res.text()}`;
+  } catch (error) {
+    return `failed: ${error.message}`;
+  }
+}
+
 /** POST /customers: match by phone (then email), or create. */
 function createCustomer(body) {
   if (!body.name || !body.phone) {
@@ -367,6 +400,7 @@ function createOrder(body) {
     number: `WEB-${1000 + n}`,
     status: "pending",
     placed_at: new Date().toISOString(),
+    status_changed_at: new Date().toISOString(),
     currency: q.currency,
     customer_link_id: body.customer_link_id,
     storefront_order_number: body.storefront_order_number,
@@ -565,6 +599,19 @@ const server = createServer(async (req, res) => {
     if (path === "/__mock/state") return send(res, 200, state);
     if (path === "/__mock/reset") return ((state = seed()), send(res, 200, { ok: true }));
     if (path === "/__mock/orders") return send(res, 200, { data: state.orders });
+    if (path === "/__mock/orders/status") {
+      // {"number":"WEB-1001","status":"preparing","webhook":true}: change an order's status
+      // like staff would, and (unless webhook is false) notify the storefront.
+      const body = (await readBody(req)) ?? {};
+      const order = state.orders.find(
+        (o) => o.number === body.number || o.link_id === body.link_id,
+      );
+      if (!order) return send(res, 404, { message: "No such order" });
+      order.status = body.status;
+      order.status_changed_at = new Date().toISOString();
+      const delivered = body.webhook === false ? "skipped" : await sendStatusWebhook(order);
+      return send(res, 200, { ok: true, order, webhook: delivered });
+    }
     if (path === "/__mock/fail") {
       // {"count": 2, "status": 503}: the next 2 writes fail with 503 (simulate an ERP outage).
       const body = (await readBody(req)) ?? {};

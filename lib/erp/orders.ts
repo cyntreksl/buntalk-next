@@ -1,5 +1,6 @@
 import "server-only";
-import { erpRequest } from "./http";
+import { ErpNotFoundError } from "./errors";
+import { erpGet, erpRequest } from "./http";
 import { erpCustomerSchema, erpOrderSchema, one } from "./schemas";
 import { toCustomer, toOrder } from "./mappers";
 import type { Customer, Order } from "./types";
@@ -115,4 +116,18 @@ export async function createOrder(input: ErpOrderInput, idempotencyKey: string):
     },
   });
   return toOrder(data);
+}
+
+/**
+ * Reads one order from the ERP (live, never cached): its current status.
+ * Returns null if the ERP doesn't know the order.
+ */
+export async function getOrder(orderId: string): Promise<Order | null> {
+  try {
+    const { data } = await erpGet(`/orders/${encodeURIComponent(orderId)}`, one(erpOrderSchema));
+    return toOrder(data);
+  } catch (error) {
+    if (error instanceof ErpNotFoundError) return null;
+    throw error;
+  }
 }

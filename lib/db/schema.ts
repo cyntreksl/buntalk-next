@@ -41,6 +41,20 @@ export const orderErpStatus = pgEnum("order_erp_status", [
   "rejected",
 ]);
 
+/**
+ * Fulfilment status from the ERP (contract enum). Customer-friendly labels
+ * are in lib/orders/status.ts. Null until the ERP has the order.
+ */
+export const orderStatus = pgEnum("order_status", [
+  "pending",
+  "confirmed",
+  "preparing",
+  "ready",
+  "dispatched",
+  "completed",
+  "cancelled",
+]);
+
 export type OrderCustomer = {
   name: string;
   phone: string;
@@ -118,6 +132,17 @@ export const orders = pgTable(
     erpOrderId: text("erp_order_id"),
     erpOrderNumber: text("erp_order_number"),
     erpCustomerId: text("erp_customer_id"),
+    /** Latest fulfilment status from the ERP (webhook or polling, BUN-165). */
+    status: orderStatus(),
+    /** When the ERP says the status changed; older updates are ignored. */
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    /** Last time the status was read from the ERP (polling fallback). */
+    statusCheckedAt: timestamp("status_checked_at", { withTimezone: true }),
+    /**
+     * Secret for the guest tracking link (/orders/{number}?token=…), so only
+     * the person who placed the order can see it without signing in.
+     */
+    accessToken: uuid("access_token").notNull().defaultRandom(),
     /** Submission attempts so far. */
     attempts: integer().notNull().default(0),
     lastError: text("last_error"),

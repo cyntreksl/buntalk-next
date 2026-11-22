@@ -239,6 +239,8 @@ export const erpOrderSchema = z.object({
     "cancelled",
   ]),
   placed_at: isoDateTime,
+  /** NEW (BUN-165): when the status last changed. */
+  status_changed_at: isoDateTime.nullable().optional(),
   currency: z.string().length(3),
   customer_link_id: uuid.nullable(),
   lines: z.array(erpOrderLineSchema),

@@ -4,6 +4,7 @@ import { cartErrorResponse } from "@/lib/cart.server";
 import { getDb } from "@/lib/db";
 import type { Order } from "@/lib/db/schema";
 import { OrderError, placeOrder, placeOrderSchema, submitOrder } from "@/lib/orders";
+import { statusLabel } from "@/lib/orders/status";
 
 /**
  * Places an order (called by the checkout page, BUN-201).
@@ -28,6 +29,10 @@ function publicOrder(order: Order) {
     number: order.number,
     /** "received" until the ERP has it, then "confirmed". */
     status: order.erpStatus === "submitted" ? "confirmed" : "received",
+    /** Customer-friendly fulfilment status (BUN-165). */
+    statusLabel: statusLabel(order.status, order.fulfilment.type).title,
+    /** Private tracking page for this order (works without signing in). */
+    trackingUrl: `/orders/${order.number}?token=${order.accessToken}`,
     erpOrderNumber: order.erpOrderNumber,
     currency: order.currency,
     subtotal: order.subtotal,

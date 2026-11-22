@@ -131,6 +131,10 @@ export async function submitOrder(
         erpOrderId: erpOrder.id,
         erpOrderNumber: erpOrder.number,
         erpCustomerId: customerId,
+        // First status from the ERP (BUN-165); later changes come by webhook or polling.
+        status: erpOrder.status,
+        statusChangedAt: erpOrder.statusChangedAt ? new Date(erpOrder.statusChangedAt) : now,
+        statusCheckedAt: now,
         submittedAt: now,
         lockedAt: null,
         nextAttemptAt: null,

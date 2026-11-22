@@ -31,6 +31,7 @@ export { quoteCart, type Quote, type QuoteLineInput } from "./quote";
 // Order writes (BUN-164): idempotent, never retried by the HTTP client
 export {
   createOrder,
+  getOrder,
   matchOrCreateCustomer,
   type ErpOrderInput,
   type ErpOrderLineInput,
