@@ -119,7 +119,8 @@ export function toOrder(o: ErpOrder): Order {
     currency: o.currency,
     customerId: orUndefined(o.customer_link_id),
     lines: o.lines.map((l) => ({
-      skuId: l.sku_link_id,
+      productId: orUndefined(l.product_link_id),
+      skuId: orUndefined(l.sku_link_id),
       productName: l.product_name,
       skuLabel: orUndefined(l.sku_label),
       quantity: l.quantity,

@@ -524,6 +524,68 @@ These endpoints are placeholders in `lib/erp/catalog.ts`:
 - Offers: `catalog/products?on_offer=true`. Real offer prices come from the scheme engine (BUN-163, BUN-174).
 - Banner and category images: add the ERP image host to `images.remotePatterns` in `next.config.ts`, then remove `unoptimized` from the banner and category `<Image>`s to get resized, modern-format images.
 
+## Orders
+
+The ERP is the system of record for orders. The storefront also keeps its own copy of every order, in its own PostgreSQL database, so that:
+
+- an order is never lost when the ERP is down;
+- the ERP order number is stored next to the storefront order;
+- failed submissions are retried and are visible to the team.
+
+### Database
+
+- **Database:** PostgreSQL with Drizzle ORM. The schema is in `lib/db/schema.ts` and the migrations in `drizzle/`.
+  - `orders`: the order snapshot (lines, prices, offers, customer, delivery, payment), the ERP status and ids, and the retry state.
+  - `order_events`: the audit trail (placed, submitted, failed with the error, rejected, requeued).
+- **Production and staging:** set `DATABASE_URL`, then run `npm run db:migrate` as a deploy step.
+- **Local development:** leave `DATABASE_URL` empty. An embedded **PGlite** database (real Postgres in WebAssembly) is created in `.data/pglite` and migrated automatically, so nothing needs installing.
+- **Schema changes:** edit `lib/db/schema.ts`, then run `npm run db:generate` and commit the new migration.
+
+### Placing an order: `POST /api/orders`
+
+The checkout page (BUN-201) sends the cart lines, customer, delivery or pickup details and the payment method. It never sends prices.
+
+1. **Prices:** the server prices the cart from the ERP (`priceCart`: live prices and the scheme engine). If anything was hidden or sold out, it refuses with **409 `cart_changed`**.
+2. **Saved first:** the order is saved with an order number such as `BT-261122-7K3QX`, before anything is sent to the ERP.
+3. **Idempotent:** each checkout attempt has an `idempotencyKey`. Sending it again, even at the same moment, returns the same order (200) and never creates a second one.
+4. **Sent at once:** the server tries to send the order to the ERP straight away. If the ERP can't take it, the order is still placed (status "received"), and the retry queue sends it later.
+
+### Sending to the ERP (`lib/orders/submit.ts`)
+
+1. **Customer:** the ERP customer is the signed-in customer, or is matched or created by phone (`POST /customers`).
+2. **Order:** then `POST /orders` (contract: `docs/erp-api-contract.md`, "Orders").
+   - Both writes send an `Idempotency-Key` derived from the order, so a retry after a timeout returns the existing ERP order.
+3. **One sender at a time:** an order is claimed with one atomic update, so two retry runs can't send it twice. A claim older than 5 minutes (a crashed worker) is taken over.
+
+| What happens                                  | Status      | Next                                                                                                   |
+| --------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| ERP accepts                                   | `submitted` | `erp_order_number` stored                                                                              |
+| ERP down, timeout, 429, 5xx, bad credentials  | `failed`    | Retried after 1, 2, 4, 8 … minutes (at most 1 hour apart), up to 8 attempts, then given up and alerted |
+| ERP refuses (409 prices changed, 422 invalid) | `rejected`  | Not retried; the team is alerted at once                                                               |
+
+### Retry queue and alerts
+
+- **Retry queue:** `POST /api/orders/retry` with `Authorization: Bearer <ORDERS_OPS_SECRET>` sends every order that is due. Run it **every minute** from a scheduler, for example the hosting platform's cron:
+
+  ```
+  curl -X POST -H "Authorization: Bearer $ORDERS_OPS_SECRET" https://<site>/api/orders/retry
+  ```
+
+  Sending `{"number":"BT-…"}` puts one failed or rejected order back in the queue and sends it now.
+
+- **Visibility:** `GET /api/orders/failed` (same secret) lists the orders to look at: failed, rejected, or not in the ERP after 10 minutes. Each comes with its last error and attempt count.
+- **Alerts:**
+  - Every alert is written to the server log as `[orders:alert] {…}`.
+  - When `ALERT_WEBHOOK_URL` is set (a Slack or Teams incoming webhook), the alert is also posted there.
+  - An alert is sent for: a rejected order, bad ERP credentials, 3 failed attempts in a row, and giving up.
+
+### Not built yet
+
+- **Delivery fees:** there are no delivery fees, areas or slots in the ERP yet (BUN-251), so the fee is 0.
+- **Cake Studio:** cake lines arrive with BUN-184, and the ERP side is BUN-252.
+- **Payment status:** "pending" until payments exist (BUN-203).
+- **Checkout form:** the form that calls this API is BUN-201.
+
 ## Errors, 404 and empty states
 
 ### 404: page not found
@@ -746,7 +808,7 @@ ERP_API_KEY=mock-key
 ERP_TENANT=buntalk
 ```
 
-`POST /__mock/products` or `/__mock/categories` with a JSON body changes data. That's how revalidation was tested:
+`POST /__mock/products` or `/__mock/categories` with a JSON body changes data. For orders, `GET /__mock/orders` lists what the storefront sent. `POST /__mock/fail` with `{"count":2,"status":503}` makes the next writes fail, to test the retry queue. That's how revalidation was tested:
 
 - An edited product showed its new name and price after the webhook.
 - A new product appeared in its category.

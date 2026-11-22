@@ -28,6 +28,14 @@ export {
 // Live basket pricing by the ERP scheme engine (never cached)
 export { quoteCart, type Quote, type QuoteLineInput } from "./quote";
 
+// Order writes (BUN-164): idempotent, never retried by the HTTP client
+export {
+  createOrder,
+  matchOrCreateCustomer,
+  type ErpOrderInput,
+  type ErpOrderLineInput,
+} from "./orders";
+
 // Storefront types
 export type {
   Banner,

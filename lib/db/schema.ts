@@ -1,0 +1,152 @@
+import {
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+/**
+ * Storefront database schema (PostgreSQL, Drizzle ORM).
+ *
+ * The ERP is the system of record for orders. The storefront keeps its own
+ * copy of every order it takes so that:
+ * - a placed order is never lost, even if the ERP is down at that moment;
+ * - the ERP order number is stored next to the storefront order;
+ * - failed submissions are retried (the `orders` table is the retry queue)
+ *   and are visible to the team (`order_events` is the audit trail).
+ *
+ * Change the schema here, then run `npm run db:generate` to create a
+ * migration in /drizzle and `npm run db:migrate` to apply it.
+ */
+
+/**
+ * Where an order is in its journey into the ERP.
+ * - pending:    saved, not sent yet
+ * - submitting: being sent now (claimed by one worker)
+ * - submitted:  the ERP accepted it; erp_order_number is set
+ * - failed:     a temporary problem (ERP down, timeout); retried automatically
+ *               until next_attempt_at is null (gave up)
+ * - rejected:   the ERP refused it (e.g. prices changed, product gone); needs a person
+ */
+export const orderErpStatus = pgEnum("order_erp_status", [
+  "pending",
+  "submitting",
+  "submitted",
+  "failed",
+  "rejected",
+]);
+
+export type OrderCustomer = {
+  name: string;
+  phone: string;
+  email?: string;
+  /** Signed-in customer's ERP id, when known at checkout. */
+  erpCustomerId?: string;
+};
+
+export type OrderAddress = { line1: string; line2?: string; city: string; notes?: string };
+
+export type OrderFulfilment =
+  | { type: "delivery"; address: OrderAddress; date?: string; slot?: string }
+  | { type: "pickup"; outletId: string; date?: string; slot?: string };
+
+export type OrderPayment = {
+  method: "cash_on_delivery" | "card";
+  status: "pending" | "paid" | "failed" | "refunded";
+  /** Payment gateway reference, once payments exist (BUN-203). */
+  reference?: string;
+};
+
+/** One order line as priced by the ERP at checkout (a snapshot; never re-read from the cart). */
+export type OrderLine = {
+  productId: string | null;
+  productSlug: string;
+  skuId?: string;
+  name: string;
+  variant?: string;
+  quantity: number;
+  unitPrice: number;
+  lineSubtotal: number;
+  discount: number;
+  lineTotal: number;
+  schemeIds: string[];
+};
+
+export type OrderScheme = { id: string; name: string; description?: string; discount: number };
+export type OrderFreeItem = {
+  name: string;
+  variant?: string;
+  quantity: number;
+  schemeName: string;
+};
+
+const money = (name: string) => numeric(name, { precision: 12, scale: 2, mode: "number" });
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    /** Storefront order number shown to the customer, e.g. "BT-261122-7K3QX". */
+    number: text().notNull().unique(),
+    /**
+     * From the checkout page: the same key for every retry of the same
+     * "Place order" click, so double clicks never create two orders. Also
+     * sent to the ERP as the Idempotency-Key, so ERP retries never duplicate.
+     */
+    idempotencyKey: uuid("idempotency_key").notNull().unique(),
+
+    customer: jsonb().$type<OrderCustomer>().notNull(),
+    fulfilment: jsonb().$type<OrderFulfilment>().notNull(),
+    lines: jsonb().$type<OrderLine[]>().notNull(),
+    appliedSchemes: jsonb("applied_schemes").$type<OrderScheme[]>().notNull().default([]),
+    freeItems: jsonb("free_items").$type<OrderFreeItem[]>().notNull().default([]),
+    payment: jsonb().$type<OrderPayment>().notNull(),
+    note: text(),
+
+    currency: text().notNull(),
+    subtotal: money("subtotal").notNull(),
+    discountTotal: money("discount_total").notNull(),
+    deliveryFee: money("delivery_fee").notNull(),
+    total: money("total").notNull(),
+
+    erpStatus: orderErpStatus("erp_status").notNull().default("pending"),
+    erpOrderId: text("erp_order_id"),
+    erpOrderNumber: text("erp_order_number"),
+    erpCustomerId: text("erp_customer_id"),
+    /** Submission attempts so far. */
+    attempts: integer().notNull().default(0),
+    lastError: text("last_error"),
+    /** When the retry worker may try again. Null = no automatic retries (submitted, rejected, gave up). */
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow(),
+    /** Set while one worker is submitting (stale locks are taken over after 5 minutes). */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("orders_retry_idx").on(t.erpStatus, t.nextAttemptAt)],
+);
+
+/** Audit trail for each order: placed, submitted, failed (with the error), rejected, gave up… */
+export const orderEvents = pgTable(
+  "order_events",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    type: text().notNull(),
+    message: text(),
+    data: jsonb(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("order_events_order_idx").on(t.orderId, t.createdAt)],
+);
+
+export type Order = typeof orders.$inferSelect;
+export type NewOrder = typeof orders.$inferInsert;

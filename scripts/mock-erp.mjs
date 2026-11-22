@@ -25,6 +25,10 @@
  * Change a price:  POST /__mock/products {"slug":"fish-bun","price":{"currency":"LKR","selling_price":"130.00","printed_price":null,"compare_at_price":null,"tax_mode":"inclusive"}}
  * Customer prices: GET …/products/fish-bun?customer=cust-wholesale (see PRICE_LEVELS).
  * Schemes (BUN-163): GET …/schemes, POST …/prices/quote (a small scheme engine).
+ * Orders (BUN-164): POST …/customers, POST …/orders (Idempotency-Key required;
+ *   a repeated key returns the first result), GET …/orders/{id}.
+ *   GET /__mock/orders lists them; POST /__mock/fail {"count":2,"status":503}
+ *   makes the next 2 writes fail, to test the retry queue.
  *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
 import { readFile } from "node:fs/promises";
@@ -303,7 +307,92 @@ function seed() {
       image_alt: null,
     },
   ];
-  return { categories, products, banners, schemes };
+  return {
+    categories,
+    products,
+    banners,
+    schemes,
+    // BUN-164: customers and online orders created by the storefront.
+    customers: [],
+    orders: [],
+    /** Idempotency-Key → stored response, so a repeated write returns the same result. */
+    idempotency: {},
+    /** Failure injection: the next N order/customer writes answer with this status. */
+    failNext: { count: 0, status: 503 },
+  };
+}
+
+/** POST /customers: match by phone (then email), or create. */
+function createCustomer(body) {
+  if (!body.name || !body.phone) {
+    return { status: 422, body: { message: "Name and phone are required.", errors: {} } };
+  }
+  const existing =
+    state.customers.find((c) => c.phone === body.phone) ??
+    (body.email ? state.customers.find((c) => c.email === body.email) : undefined);
+  if (existing) return { status: 200, body: { data: existing } };
+  const n = state.customers.length + 1;
+  const customer = {
+    link_id: `cust-${n}`,
+    code: `C${String(n).padStart(5, "0")}`,
+    name: body.name,
+    phone: body.phone,
+    email: body.email ?? null,
+    is_active: true,
+    source: body.source ?? "storefront",
+  };
+  state.customers.push(customer);
+  return { status: 201, body: { data: customer } };
+}
+
+/** POST /orders: re-prices with the scheme engine and refuses (409) if the storefront's total differs. */
+function createOrder(body) {
+  if (!body.customer_link_id || !Array.isArray(body.lines) || body.lines.length === 0) {
+    return { status: 422, body: { message: "Customer and lines are required.", errors: {} } };
+  }
+  const priced = quote({ customer_link_id: body.customer_link_id, lines: body.lines });
+  if (priced.error) return { status: priced.error, body: { message: priced.message } };
+  const q = priced.data;
+  if (q.total !== body.total) {
+    return {
+      status: 409,
+      body: {
+        message: `Prices have changed since the order was placed (ERP total ${q.total}, storefront total ${body.total}).`,
+      },
+    };
+  }
+  const n = state.orders.length + 1;
+  const order = {
+    link_id: `erp-o-${n}`,
+    number: `WEB-${1000 + n}`,
+    status: "pending",
+    placed_at: new Date().toISOString(),
+    currency: q.currency,
+    customer_link_id: body.customer_link_id,
+    storefront_order_number: body.storefront_order_number,
+    fulfilment: body.fulfilment,
+    payment: body.payment,
+    lines: q.lines.map((l) => {
+      const p = state.products.find((x) => x.link_id === l.product_link_id);
+      const sku = p?.skus.find((x) => x.link_id === l.sku_link_id);
+      return {
+        product_link_id: l.product_link_id,
+        sku_link_id: l.sku_link_id,
+        product_name: p?.name ?? "Unknown",
+        sku_label: sku ? sku.options.map((o) => o.value).join(" / ") : null,
+        quantity: l.quantity,
+        unit_price: l.unit_price,
+        discount: l.discount,
+        line_total: l.line_total,
+      };
+    }),
+    subtotal: q.subtotal,
+    discount_total: q.discount_total,
+    delivery_fee: body.delivery_fee ?? "0.00",
+    total: q.total,
+  };
+  state.orders.push(order);
+  return { status: 201, body: { data: order } };
 }
 
 /** A scheme the engine may apply now (active, inside its dates, for this customer). */
@@ -475,6 +564,13 @@ const server = createServer(async (req, res) => {
   if (path.startsWith("/__mock/")) {
     if (path === "/__mock/state") return send(res, 200, state);
     if (path === "/__mock/reset") return ((state = seed()), send(res, 200, { ok: true }));
+    if (path === "/__mock/orders") return send(res, 200, { data: state.orders });
+    if (path === "/__mock/fail") {
+      // {"count": 2, "status": 503}: the next 2 writes fail with 503 (simulate an ERP outage).
+      const body = (await readBody(req)) ?? {};
+      state.failNext = { count: Number(body.count ?? 1), status: Number(body.status ?? 503) };
+      return send(res, 200, { ok: true, failNext: state.failNext });
+    }
     const body = await readBody(req);
     const idField = path === "/__mock/schemes" ? "link_id" : "slug";
     if (!body?.[idField]) return send(res, 422, { message: idField + " is required" });
@@ -530,6 +626,25 @@ const server = createServer(async (req, res) => {
   }
   if (route === "/banners") return send(res, 200, { data: state.banners });
   if (route === "/schemes") return send(res, 200, { data: state.schemes });
+  // --- Writes (BUN-164): customers and orders, idempotent by Idempotency-Key ---
+  if ((route === "/customers" || route === "/orders") && req.method === "POST") {
+    if (state.failNext.count > 0) {
+      state.failNext.count--;
+      return send(res, state.failNext.status, { message: "Simulated ERP outage" });
+    }
+    const key = req.headers["idempotency-key"];
+    if (!key) return send(res, 422, { message: "Idempotency-Key header is required." });
+    const seen = state.idempotency[`${route}:${key}`];
+    if (seen) return send(res, seen.status, seen.body);
+    const body = (await readBody(req)) ?? {};
+    const result = route === "/customers" ? createCustomer(body) : createOrder(body);
+    if (result.status < 400) state.idempotency[`${route}:${key}`] = result;
+    return send(res, result.status, result.body);
+  }
+  if (route.startsWith("/orders/")) {
+    const o = state.orders.find((x) => x.link_id === decodeURIComponent(route.split("/")[2]));
+    return o ? send(res, 200, { data: o }) : send(res, 404, { message: "Not Found" });
+  }
   if (route === "/prices/quote" && req.method === "POST") {
     const result = quote(await readBody(req));
     return result.error
