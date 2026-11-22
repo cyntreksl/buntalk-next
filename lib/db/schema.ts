@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  primaryKey,
   integer,
   jsonb,
   numeric,
@@ -256,3 +257,33 @@ export const customerAddresses = pgTable(
 
 export type Customer = typeof customers.$inferSelect;
 export type CustomerAddress = typeof customerAddresses.$inferSelect;
+
+/* ------------------------------------------------------------------------- */
+/* Catalog freshness (BUN-167)                                                */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * A fingerprint (hash) of every catalog item as the ERP last had it. The
+ * scheduled catalog check compares the ERP's current data against these to
+ * find changes that a missed webhook didn't report, and refreshes exactly
+ * those pages.
+ */
+export const catalogFingerprints = pgTable(
+  "catalog_fingerprints",
+  {
+    /** "product" | "category" | "scheme" | "banner" */
+    kind: text().notNull(),
+    /** Product/category slug, or scheme/banner link_id. */
+    key: text().notNull(),
+    hash: text().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.key] })],
+);
+
+/** Small key/value store for background jobs (e.g. when the catalog was last checked). */
+export const jobState = pgTable("job_state", {
+  key: text().primaryKey(),
+  value: jsonb().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

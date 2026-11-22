@@ -22,8 +22,6 @@ const serverSchema = z.object({
   ERP_TENANT: optional(z.string().regex(/^[A-Za-z0-9_-]+$/, "letters, numbers, - and _ only")),
   // Per-request time limit in milliseconds (default 8000).
   ERP_TIMEOUT_MS: optional(z.coerce.number().int().min(1000).max(60_000)),
-  // Shared secret the ERP sends when it calls /api/revalidate
-  REVALIDATE_SECRET: optional(z.string().min(16)),
   // Storefront database (orders, ERP submission queue): postgres://user:pass@host:5432/db
   DATABASE_URL: optional(z.string().regex(/^postgres(ql)?:\/\//, "a postgres:// URL")),
   // Local only, without DATABASE_URL: folder for the embedded PGlite database.
@@ -32,7 +30,8 @@ const serverSchema = z.object({
   PGLITE_DIR: optional(z.string()),
   // Secret for the order operations endpoints (retry queue, failed orders), at least 16 characters
   ORDERS_OPS_SECRET: optional(z.string().min(16)),
-  // Shared secret for signed ERP webhooks (order status), at least 16 characters
+  // Shared secret the ERP signs its webhooks with (catalog revalidation, order
+  // status; HMAC-SHA256, lib/webhooks/signature.ts), at least 16 characters
   ERP_WEBHOOK_SECRET: optional(z.string().min(16)),
   // Optional: Slack/Teams-compatible incoming webhook for order alerts ({ "text": … })
   ALERT_WEBHOOK_URL: optional(z.url()),

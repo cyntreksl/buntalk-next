@@ -21,7 +21,7 @@ per-feature permissions, so the storefront can't use them. This proposes a small
 | Request ID  | The storefront sends `X-Request-Id` (UUID) on every call. Please log it, so problems can be traced on both sides.                                                                                                                                                                                           |
 | Idempotency | Writes send `Idempotency-Key`. The ERP should return the original result for a repeated key (no double orders).                                                                                                                                                                                             |
 | Rate limit  | Return `429` with `Retry-After` (seconds). The storefront waits and retries reads.                                                                                                                                                                                                                          |
-| Webhook     | When catalog data changes, the ERP calls the storefront's `POST /api/revalidate` (see README "Rendering strategy").                                                                                                                                                                                         |
+| Webhooks    | Every ERP → storefront webhook is **signed**: `X-Erp-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">` with the shared `ERP_WEBHOOK_SECRET`. Older than 5 minutes = refused. Catalog changes: `POST /api/revalidate` (see "Catalog change webhook"); order status: see "Order status".  |
 
 ## 2. Errors
 
@@ -230,6 +230,22 @@ For pickup, `fulfilment` is `{ "type": "pickup", "outlet_link_id": "…", "date"
 
 Delivery fees, areas and slots don't exist in the ERP yet (BUN-251), so the storefront sends `delivery_fee: "0.00"`. Cake Studio cakes as order lines need BUN-252.
 
+### Catalog change webhook (BUN-167; ERP side: BUN-246)
+
+When catalog data changes, the ERP sends a signed `POST {STOREFRONT_URL}/api/revalidate`:
+
+| Body                                                         | When                                                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `{ "type": "product", "slug": "…", "previous_slug": "…"? }`  | Product name, description, image, price version, visibility, featured, category, SKUs or options |
+| `{ "type": "category", "slug": "…", "previous_slug": "…"? }` | Category name, parent, order, image, visibility                                                  |
+| `{ "type": "home" }`                                         | Featured list                                                                                    |
+| `{ "type": "banners" }`                                      | Home banners                                                                                     |
+| `{ "type": "schemes" }`                                      | Any scheme added, changed or ended                                                               |
+| `{ "type": "all" }`                                          | Bulk imports, price-list changes                                                                 |
+| `{ "events": [ … ] }`                                        | Several of the above at once (up to 200), e.g. a burst collapsed by the job                      |
+
+Answers: `200` (safe to retry), `401` (bad or old signature: check the secret and clock), `400` (invalid body). The storefront also checks the whole catalog every 5 minutes, so a lost webhook delays a change by at most 5 minutes. A change feed (`?updated_since=`, BUN-255) would let that check read only what changed.
+
 ### Order status (BUN-165; ERP side: BUN-253)
 
 Statuses: `pending` → `confirmed` → `preparing` → `ready` → `dispatched` (delivery only) → `completed`, or `cancelled`. The order resource includes `status_changed_at`.
@@ -285,29 +301,30 @@ The storefront links each storefront customer to exactly one ERP customer, and s
 
 Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP side)". Each ticket is linked to the storefront ticket it blocks. Add a new ticket there for any new gap.
 
-| Ticket  | ERP work                                                 | Blocks                    |
-| ------- | -------------------------------------------------------- | ------------------------- |
-| BUN-233 | API foundation: routes, machine credential, error format | BUN-159, BUN-230          |
-| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`) | BUN-160                   |
-| BUN-235 | Slugs on products and categories                         | BUN-160, BUN-246          |
-| BUN-236 | Category parent and display order                        | BUN-160                   |
-| BUN-237 | Preparation (processing) time                            | BUN-160                   |
-| BUN-238 | Public image URLs, image host, extra photos              | BUN-160                   |
-| BUN-239 | "Show on the website" switch                             | BUN-161                   |
-| BUN-240 | Featured products and home banners                       | BUN-157                   |
-| BUN-241 | Online price channel, resolved and compare-at prices     | BUN-162, BUN-174          |
-| BUN-242 | Schemes and basket price quote                           | BUN-163, BUN-177          |
-| BUN-243 | Customer create/match and read                           | BUN-166, 192, 195, 196    |
-| BUN-244 | Online orders: model, place, status                      | BUN-164, BUN-165, BUN-201 |
-| BUN-245 | Sales outlets endpoint                                   | BUN-201                   |
-| BUN-246 | Revalidate webhook calls from the ERP                    | BUN-167                   |
-| BUN-247 | Customer-specific prices (customer group price levels)   | BUN-162, BUN-196          |
-| BUN-248 | Promotions scheme engine (shared by POS and web)         | BUN-163, BUN-208, BUN-242 |
-| BUN-250 | Ingredients, allergens and dietary tags per product      | BUN-249                   |
-| BUN-251 | Delivery areas, delivery fees and time slots             | BUN-164, BUN-199          |
-| BUN-252 | Cake Studio cakes as lines of an online order            | BUN-164, BUN-184          |
-| BUN-253 | Online order fulfilment workflow and status webhooks     | BUN-165, BUN-194          |
-| BUN-254 | Update storefront customers: profile, addresses, merges  | BUN-166, BUN-193, BUN-198 |
+| Ticket  | ERP work                                                      | Blocks                    |
+| ------- | ------------------------------------------------------------- | ------------------------- |
+| BUN-233 | API foundation: routes, machine credential, error format      | BUN-159, BUN-230          |
+| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`)      | BUN-160                   |
+| BUN-235 | Slugs on products and categories                              | BUN-160, BUN-246          |
+| BUN-236 | Category parent and display order                             | BUN-160                   |
+| BUN-237 | Preparation (processing) time                                 | BUN-160                   |
+| BUN-238 | Public image URLs, image host, extra photos                   | BUN-160                   |
+| BUN-239 | "Show on the website" switch                                  | BUN-161                   |
+| BUN-240 | Featured products and home banners                            | BUN-157                   |
+| BUN-241 | Online price channel, resolved and compare-at prices          | BUN-162, BUN-174          |
+| BUN-242 | Schemes and basket price quote                                | BUN-163, BUN-177          |
+| BUN-243 | Customer create/match and read                                | BUN-166, 192, 195, 196    |
+| BUN-244 | Online orders: model, place, status                           | BUN-164, BUN-165, BUN-201 |
+| BUN-245 | Sales outlets endpoint                                        | BUN-201                   |
+| BUN-246 | Revalidate webhook calls from the ERP                         | BUN-167                   |
+| BUN-247 | Customer-specific prices (customer group price levels)        | BUN-162, BUN-196          |
+| BUN-248 | Promotions scheme engine (shared by POS and web)              | BUN-163, BUN-208, BUN-242 |
+| BUN-250 | Ingredients, allergens and dietary tags per product           | BUN-249                   |
+| BUN-251 | Delivery areas, delivery fees and time slots                  | BUN-164, BUN-199          |
+| BUN-252 | Cake Studio cakes as lines of an online order                 | BUN-164, BUN-184          |
+| BUN-253 | Online order fulfilment workflow and status webhooks          | BUN-165, BUN-194          |
+| BUN-254 | Update storefront customers: profile, addresses, merges       | BUN-166, BUN-193, BUN-198 |
+| BUN-255 | Catalog change feed (`updated_since`) for the scheduled check | BUN-167                   |
 
 ## 6. Open questions for the ERP team
 

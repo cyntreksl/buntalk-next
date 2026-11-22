@@ -2,13 +2,13 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { serverEnv } from "@/lib/env.server";
 import { applyStatus, findOrderForErp, isErpOrderStatus } from "@/lib/orders";
-import { SIGNATURE_HEADER, verifySignature } from "@/lib/orders/webhook";
+import { SIGNATURE_HEADER, verifySignature } from "@/lib/webhooks/signature";
 
 /**
  * Order status webhook from the ERP (BUN-165).
  *
  *   POST /api/webhooks/erp/order-status
- *   X-Erp-Signature: t=<unix seconds>,v1=<HMAC-SHA256 hex>     (see lib/orders/webhook.ts)
+ *   X-Erp-Signature: t=<unix seconds>,v1=<HMAC-SHA256 hex>     (see lib/webhooks/signature.ts)
  *
  *   {
  *     "event": "order.status_changed",

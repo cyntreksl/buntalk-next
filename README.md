@@ -40,7 +40,7 @@ All variables are documented in [`.env.example`](.env.example). Copy it to `.env
 | `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser |
 | `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                 |
 | `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)          |
-| `REVALIDATE_SECRET`    | server | Secret the ERP sends to `/api/revalidate`               |
+| `ERP_WEBHOOK_SECRET`   | server | Secret the ERP signs its webhooks with (HMAC-SHA256)    |
 
 Env vars are validated with Zod:
 
@@ -153,33 +153,67 @@ The project uses Next.js [Cache Components](https://nextjs.org/docs/app/getting-
 
 A page refreshes as often as the shortest-lived data it shows. To change a page type's refresh time, change its profile in `next.config.ts`.
 
-### On-demand revalidation
+### Keeping data fresh (BUN-167)
 
-When data changes in the ERP (price update, new product, edited description), the ERP calls the webhook so the site updates right away instead of waiting up to 15 minutes:
+There are three layers, from fastest to slowest:
+
+| Layer                   | Delay             | How                                                                                                                                                              |
+| ----------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ERP webhook             | Seconds           | The ERP calls the signed `POST /api/revalidate` when something changes                                                                                           |
+| Scheduled catalog check | At most 5 minutes | `POST /api/cron` (every minute) reads the ERP catalog live every 5 minutes, compares fingerprints, and refreshes exactly what changed (`lib/freshness/check.ts`) |
+| Time-based refresh      | 15 minutes        | The `catalog` cache profile, for everything else                                                                                                                 |
+
+So a price or visibility change is live within seconds, and **within 5 minutes even if a webhook is lost**.
+
+#### On-demand revalidation webhook
 
 ```http
 POST /api/revalidate
-Authorization: Bearer <REVALIDATE_SECRET>
+X-Erp-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with ERP_WEBHOOK_SECRET>
 Content-Type: application/json
 
 { "type": "product", "slug": "<product-slug>" }
 ```
 
-| `type`     | Body needs | Refreshes                                                           |
-| ---------- | ---------- | ------------------------------------------------------------------- |
-| `product`  | `slug`     | That product page, plus every product list (category, home, search) |
-| `category` | `slug`     | That category page, plus the category list                          |
-| `home`     | —          | Home page                                                           |
-| `all`      | —          | The whole catalog                                                   |
+| `type`     | Body needs                              | Refreshes                                                                             |
+| ---------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
+| `product`  | `slug` (+ `previous_slug` when renamed) | That product page (and its old URL), plus every product list (category, home, search) |
+| `category` | `slug` (+ `previous_slug`)              | That category page, plus every menu and category list                                 |
+| `home`     | —                                       | Home page featured products                                                           |
+| `banners`  | —                                       | Home page banners                                                                     |
+| `schemes`  | —                                       | Offer badges everywhere                                                               |
+| `all`      | —                                       | The whole catalog (bulk imports, price lists)                                         |
 
-Responses:
+Several changes can be sent at once as `{ "events": [ … ] }` (up to 200).
 
-- `200 {"revalidated": [...tags]}` on success
-- `401` when the secret is wrong
-- `400` when the body is invalid
-- `503` when `REVALIDATE_SECRET` isn't set
+- **Signed:** requests must be signed with the shared `ERP_WEBHOOK_SECRET` (`lib/webhooks/signature.ts`, the same scheme as the order status webhook).
+  - **Unsigned or wrongly signed requests are rejected (401).**
+  - A captured request can't be replayed: anything more than 5 minutes old is refused.
+- **Responses:**
+  - `200 {"revalidated": [...tags]}`
+  - `401` unsigned, bad or old signature
+  - `400` invalid body
+  - `503` when `ERP_WEBHOOK_SECRET` isn't set
+- **Sending one by hand:** `node scripts/send-erp-webhook.mjs <url> '<json>'` sends a correctly signed request, for testing or a manual refresh.
 
 Pages keep serving the old version until the new one is ready, so visitors never wait. Tag names are in `lib/cache-tags.ts`. When adding a cached read, give it the matching tags.
+
+#### Background jobs: `POST /api/cron`
+
+Schedule **one** request every minute, with `Authorization: Bearer <ORDERS_OPS_SECRET>`:
+
+```
+curl -X POST -H "Authorization: Bearer $ORDERS_OPS_SECRET" https://<site>/api/cron
+```
+
+It runs every job; each keeps its own pace:
+
+- order submissions due for a retry (BUN-164);
+- order statuses not checked for 5 minutes (BUN-165);
+- customer changes to send (BUN-166);
+- the catalog check every 5 minutes (BUN-167).
+
+One failing job doesn't stop the others. `POST /api/orders/retry` stays for re-sending one order by hand.
 
 ### Per-user pages (`app/(site)/(private)/` and `app/(checkout)/`)
 
@@ -565,10 +599,10 @@ The checkout page (BUN-201) sends the cart lines, customer, delivery or pickup d
 
 ### Retry queue and alerts
 
-- **Retry queue:** `POST /api/orders/retry` with `Authorization: Bearer <ORDERS_OPS_SECRET>` sends every order that is due. Run it **every minute** from a scheduler, for example the hosting platform's cron:
+- **Retry queue:** the every-minute `POST /api/cron` (see "Background jobs") sends every order that is due. `POST /api/orders/retry` does the same on demand. Run the cron **every minute** from a scheduler, for example the hosting platform's cron:
 
   ```
-  curl -X POST -H "Authorization: Bearer $ORDERS_OPS_SECRET" https://<site>/api/orders/retry
+  curl -X POST -H "Authorization: Bearer $ORDERS_OPS_SECRET" https://<site>/api/cron
   ```
 
   Sending `{"number":"BT-…"}` puts one failed or rejected order back in the queue and sends it now.
@@ -586,7 +620,7 @@ Each order's fulfilment status is kept in step with the ERP (`lib/orders/sync.ts
 | Way               | Delay             | How                                                                                                                |
 | ----------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------ |
 | ERP webhook       | Seconds           | `POST /api/webhooks/erp/order-status`, signed with HMAC-SHA256 (`ERP_WEBHOOK_SECRET`, `lib/orders/webhook.ts`)     |
-| Polling           | At most 5 minutes | The every-minute retry cron (`POST /api/orders/retry`) also reads open orders not checked for 5 minutes            |
+| Polling           | At most 5 minutes | The every-minute cron (`POST /api/cron`) also reads open orders not checked for 5 minutes                          |
 | Viewing the order | Up to 1 minute    | The order page re-checks with the ERP when the status is over a minute old, then refreshes itself every 30 seconds |
 
 - **Customer words** (`lib/orders/status.ts`): Order received, Order confirmed, Being prepared, Ready for delivery / Ready to collect, Out for delivery, Delivered / Collected, Cancelled. A timeline shows the steps, and pickup has no "Out for delivery" step.
@@ -622,7 +656,7 @@ Every storefront customer has exactly one linked ERP customer (BUN-166). The cod
   - **failed** (ERP down): retried after 1, 2, 4 … minutes, up to 8 attempts, with an alert after 3.
   - **conflict**: the phone or email belongs to another ERP customer, or two accounts match one ERP customer. Nothing is merged by guesswork; the team is alerted.
 - **Operations:**
-  - The every-minute cron (`POST /api/orders/retry`) also runs the customer queue.
+  - The every-minute cron (`POST /api/cron`) also runs the customer queue.
   - `GET /api/customers/failed` (with `ORDERS_OPS_SECRET`) lists conflicts and failures.
   - Alerts use the shared `lib/alerts.ts` (`[customers:alert]` in the log, plus `ALERT_WEBHOOK_URL`).
 - **Who calls it:**

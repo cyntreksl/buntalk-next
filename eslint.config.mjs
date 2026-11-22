@@ -39,7 +39,12 @@ const erpImportRules = {
     },
   ],
 };
-const ERP_INTERNAL_FILES = ["lib/erp/**", "lib/env.server.ts"];
+const ERP_INTERNAL_FILES = [
+  "lib/erp/**",
+  "lib/env.server.ts",
+  // Standalone CLI (not part of the app): signs test webhooks with ERP_WEBHOOK_SECRET.
+  "scripts/send-erp-webhook.mjs",
+];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
