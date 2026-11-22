@@ -1,4 +1,4 @@
 export { useCartStore, selectCartCount, type CartItem } from "./store";
-export { AddToCartButton } from "./AddToCartButton";
+export { ProductPurchase } from "./ProductPurchase";
 export { CartContents } from "./CartContents";
 export { CartSummary } from "./CartSummary";

@@ -22,3 +22,16 @@ export async function getSession(): Promise<Session> {
   // TODO(BUN-186): verify the token and load the user.
   return token ? { userId: "unverified" } : null;
 }
+
+/**
+ * The signed-in customer's ERP customer id (`PosCustomer` link_id), used to
+ * ask the ERP for that customer's own prices (customer group price level).
+ *
+ * Returns null until real sign-in exists: the session token isn't verified
+ * yet, so it must never select prices. TODO(BUN-186): return the verified
+ * customer's ERP link_id.
+ */
+export async function getCustomerId(): Promise<string | null> {
+  await getSession();
+  return null;
+}

@@ -1,20 +1,22 @@
 import { z } from "zod";
-import {
-  MAX_CART_LINES,
-  cartErrorResponse,
-  cartLineSchema,
-  checkCartLines,
-} from "@/lib/cart.server";
+import { getCustomerId } from "@/lib/auth";
+import { MAX_CART_LINES, cartErrorResponse, cartLineSchema, priceCart } from "@/lib/cart.server";
 
 /**
- * Re-checks a whole cart against the ERP (the cart page calls this on open).
+ * Re-prices a whole cart from the ERP (the cart and checkout pages call this
+ * when they open).
  *
- *   POST /api/cart/validate   { "items": [{ "sku": "<product slug>", "quantity": 2 }, …] }
+ *   POST /api/cart/validate   { "items": [{ "productSlug": "…", "skuId": "…", "quantity": 2 }, …] }
  *
- *   200 { items: [{ sku, name, unitPrice, quantity }], removed: [{ sku }] }
+ *   200 {
+ *     items:    [{ key, productSlug, skuId, name, variant, unitPrice, quantity, lineTotal }],
+ *     removed:  [{ key, reason: "not_available" | "sold_out" | "choose_variant" }],
+ *     currency: "LKR",
+ *     subtotal: 1234.5
+ *   }
  *
- * `removed` lists products that were hidden in the ERP (or deleted) since they
- * were added; the browser drops them. Names and prices are refreshed from the ERP.
+ * Unit prices are the ERP's current prices (the signed-in customer's own, if
+ * any). Line totals and the subtotal are calculated here on the server.
  */
 const bodySchema = z.object({ items: z.array(cartLineSchema).max(MAX_CART_LINES) });
 
@@ -28,7 +30,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    return Response.json(await checkCartLines(parsed.data.items));
+    const cart = await priceCart(parsed.data.items, { customerId: await getCustomerId() });
+    return Response.json(cart, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return cartErrorResponse(error);
   }
