@@ -9,6 +9,7 @@ import { erpGet } from "./http";
 import { toBanner, toCategory, toProduct } from "./mappers";
 import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
 import { offersFor, withSchemeBackedDiscounts } from "@/lib/offers";
+import { searchCatalog } from "@/lib/search";
 import {
   erpBannerSchema,
   erpCategorySchema,
@@ -226,20 +227,30 @@ export async function getOfferProducts(): Promise<Product[]> {
   return (await visibleProducts(data)).filter(isOnOffer);
 }
 
+/**
+ * Every product shown online (cached). Search (BUN-172) runs over this list
+ * on the storefront, so it can be typo-tolerant and fast, and it only ever
+ * finds visible products.
+ */
+export async function getAllProducts(): Promise<Product[]> {
+  "use cache";
+  cacheLife("catalog");
+  cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products, cacheTags.schemes);
+
+  if (isSampleCatalogEnabled()) return sampleProducts;
+  const { data } = await erpGet("/products", listOf(erpProductSchema));
+  return visibleProducts(data);
+}
+
+/** Products matching a search, best first (lib/search.ts). */
 export async function searchProducts(query: string): Promise<Product[]> {
   "use cache";
   cacheLife("search");
   cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products, cacheTags.schemes);
 
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  if (isSampleCatalogEnabled()) {
-    return sampleProducts.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q),
-    );
-  }
-  const { data } = await erpGet("/products", listOf(erpProductSchema), { search: q });
-  return visibleProducts(data);
+  if (!query.trim()) return [];
+  const [products, categories] = await Promise.all([getAllProducts(), getCategories()]);
+  return searchCatalog(products, query, new Map(categories.map((c) => [c.slug, c.name])));
 }
 
 /**

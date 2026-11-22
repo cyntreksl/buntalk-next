@@ -3,6 +3,7 @@ import {
   buildCategoryTree,
   categoryTrail,
   descendantSlugs,
+  popularCategories,
   sortByErpOrder,
   topLevelCategories,
 } from "./categories";
@@ -66,5 +67,32 @@ describe("categoryTrail and descendantSlugs", () => {
 
   it("returns a category with all its sub-categories", () => {
     expect(descendantSlugs(categories, "cakes")).toEqual(["cakes", "birthday", "kids"]);
+  });
+});
+
+describe("popularCategories", () => {
+  // cakes (1) › birthday (3); buns (2); drinks (4)
+  const categories = [
+    cat("cakes", 1),
+    cat("birthday", 3, "cakes"),
+    cat("buns", 2),
+    cat("drinks", 4),
+  ];
+
+  it("ranks top-level categories by their products' popularity, sub-categories included", () => {
+    const products = [
+      { categorySlug: "buns", popularity: 10 },
+      { categorySlug: "birthday", popularity: 30 },
+      { categorySlug: "drinks", popularity: 5 },
+    ];
+    expect(popularCategories(categories, products).map((c) => c.slug)).toEqual([
+      "cakes",
+      "buns",
+      "drinks",
+    ]);
+  });
+
+  it("keeps the ERP order without popularity data, and respects the limit", () => {
+    expect(popularCategories(categories, [], 2).map((c) => c.slug)).toEqual(["cakes", "buns"]);
   });
 });

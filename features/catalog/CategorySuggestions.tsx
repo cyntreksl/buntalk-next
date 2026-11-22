@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { topLevelCategories } from "@/lib/categories";
-import { getNavigationCategories } from "@/lib/erp";
+import { popularCategories } from "@/lib/categories";
+import { getAllProducts, getNavigationCategories } from "@/lib/erp";
 
 /**
- * "Popular categories" links for 404 pages and empty states. Uses the
- * never-failing navigation read, so it simply hides itself if the ERP is down.
+ * "Popular categories" links for 404 pages, empty states and "no results"
+ * (BUN-172): top-level categories ranked by their products' sales popularity
+ * (ERP order until the ERP sends popularity, BUN-256). Uses never-failing
+ * reads, so it simply hides itself if the ERP is down.
  */
 export async function CategorySuggestions({
   title = "Popular categories",
@@ -13,7 +15,11 @@ export async function CategorySuggestions({
   title?: string;
   limit?: number;
 }) {
-  const categories = topLevelCategories(await getNavigationCategories()).slice(0, limit);
+  const [all, products] = await Promise.all([
+    getNavigationCategories(),
+    getAllProducts().catch(() => []),
+  ]);
+  const categories = popularCategories(all, products, limit);
   if (categories.length === 0) return null;
   return (
     <nav aria-label={title} className="flex flex-col items-center gap-3">

@@ -22,6 +22,7 @@ export {
   getProduct,
   getProductsForCart,
   getProductsByCategory,
+  getAllProducts,
   searchProducts,
 } from "./catalog";
 

@@ -78,3 +78,31 @@ export function descendantSlugs(categories: Category[], slug: string): string[] 
   const node = find(tree);
   return node ? collect(node) : [slug];
 }
+
+/**
+ * Top-level categories, most popular first (BUN-172 "no results" page): ranked
+ * by the total popularity of the products in each category and its
+ * sub-categories. Without popularity data from the ERP (BUN-256), or on a tie,
+ * the ERP's display order is kept.
+ */
+export function popularCategories(
+  categories: Category[],
+  products: { categorySlug: string; popularity?: number }[],
+  limit = 6,
+): Category[] {
+  const top = topLevelCategories(categories);
+  const score = new Map(
+    top.map((c) => {
+      const slugs = new Set(descendantSlugs(categories, c.slug));
+      const total = products
+        .filter((p) => slugs.has(p.categorySlug))
+        .reduce((sum, p) => sum + (p.popularity ?? 0), 0);
+      return [c.slug, total];
+    }),
+  );
+  return top
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => (score.get(b.c.slug) ?? 0) - (score.get(a.c.slug) ?? 0) || a.i - b.i)
+    .map(({ c }) => c)
+    .slice(0, limit);
+}
