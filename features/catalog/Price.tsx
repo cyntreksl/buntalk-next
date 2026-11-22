@@ -1,5 +1,5 @@
 import { discountPercent, isOnOffer } from "@/lib/pricing";
-import { cx, formatPrice } from "@/lib/utils";
+import { cx, formatPrice, priceParts } from "@/lib/utils";
 
 type PriceProps = {
   price: number;
@@ -11,7 +11,11 @@ type PriceProps = {
   className?: string;
 };
 
-/** Price, with the original price struck through when on offer. Screen readers hear "Was … now …". */
+/**
+ * Price, with the original price struck through when on offer. The amount is
+ * bold with a small currency code ("LKR 4,500.00"). Screen readers hear
+ * "Was … now …".
+ */
 export function Price({
   price,
   compareAtPrice,
@@ -21,7 +25,7 @@ export function Price({
   className,
 }: PriceProps) {
   const onOffer = isOnOffer({ price, compareAtPrice });
-  const current = formatPrice(price, currency);
+  const current = priceParts(price, currency);
   return (
     <p className={cx("flex flex-wrap items-baseline gap-x-2", className)}>
       {onOffer && (
@@ -29,12 +33,20 @@ export function Price({
       )}
       <span
         className={cx(
-          "text-primary font-bold",
-          size === "lg" ? "font-display text-h2" : "text-body",
+          "text-foreground inline-flex items-baseline gap-1 font-extrabold",
+          size === "lg" ? "text-h2" : "text-body-lg",
         )}
       >
-        {from && <span className="text-body-sm text-muted-foreground font-semibold">From </span>}
-        {current}
+        {from && <span className="text-body-sm text-muted-foreground font-semibold">From</span>}
+        <span
+          className={cx(
+            "text-muted-foreground font-bold",
+            size === "lg" ? "text-body" : "text-caption",
+          )}
+        >
+          {current.currency}
+        </span>
+        {current.amount}
       </span>
       {onOffer && (
         <s aria-hidden="true" className="text-muted-foreground text-body-sm">

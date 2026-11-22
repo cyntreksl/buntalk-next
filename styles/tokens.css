@@ -100,10 +100,10 @@
 /* primary-foreground on primary 4.9:1, heading 8:1, accent-foreground 6.5:1.  */
 /* ------------------------------------------------------------------------- */
 :root {
-  --background: var(--color-sand-50); /* page */
+  --background: var(--color-white); /* page: clean white, marketplace style */
   --foreground: var(--color-sand-900); /* body text */
   --surface: var(--color-white); /* cards, panels, inputs */
-  --surface-muted: var(--color-sand-100); /* subtle sections */
+  --surface-muted: var(--color-sand-100); /* subtle sections, product image wells, search field */
   --heading: var(--color-brown-700); /* headings, brand text */
   --muted-foreground: var(--color-sand-600); /* secondary text */
   --border: var(--color-sand-200);
@@ -206,6 +206,7 @@
 
   /* Fonts are loaded with next/font in app/layout.tsx */
   --font-sans: var(--font-nunito), var(--font-noto-sinhala), ui-sans-serif, system-ui, sans-serif;
+  /* Display: the brand's rounded face, only for big hero headlines (text-display). */
   --font-display: var(--font-baloo), var(--font-noto-sinhala), ui-sans-serif, system-ui, sans-serif;
   --font-sinhala: var(--font-noto-sinhala), var(--font-nunito), sans-serif;
 }
@@ -249,6 +250,7 @@
   --radius-md: 0.625rem; /* 10px: buttons */
   --radius-lg: 1rem; /* 16px: cards */
   --radius-xl: 1.5rem; /* 24px: large panels, brand frame corner */
+  --radius-2xl: 2rem; /* 32px: hero banners */
 
   /* Shadows (warm tint) */
   --shadow-*: initial;

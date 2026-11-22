@@ -15,17 +15,17 @@ export function SectionHeading({
   viewAll?: { href: string; label: string };
 }) {
   return (
-    <div className="mb-5 flex items-end justify-between gap-4 md:mb-6">
+    <div className="mb-4 flex items-end justify-between gap-4 md:mb-5">
       <div className="flex flex-col gap-1">
-        <h2 id={id} className="text-h2">
+        <h2 id={id} className="text-h3 text-foreground">
           {title}
         </h2>
-        {description && <p className="text-muted-foreground">{description}</p>}
+        {description && <p className="text-body-sm text-muted-foreground">{description}</p>}
       </div>
       {viewAll && (
         <Link
           href={viewAll.href}
-          className="text-body-sm text-primary inline-flex shrink-0 items-center gap-0.5 font-bold hover:underline"
+          className="text-body-sm text-muted-foreground hover:text-primary inline-flex shrink-0 items-center gap-0.5 font-semibold"
         >
           {viewAll.label}
           <ChevronRightIcon size={16} />

@@ -16,10 +16,10 @@ function TrustItem({
   link: { href: string; label: string };
 }) {
   return (
-    <li className="border-border bg-surface flex gap-4 rounded-lg border p-5">
+    <li className="bg-surface-muted flex gap-4 rounded-2xl p-5">
       <span
         aria-hidden="true"
-        className="bg-accent-soft text-accent-soft-foreground flex size-11 shrink-0 items-center justify-center rounded-full"
+        className="bg-surface text-primary flex size-11 shrink-0 items-center justify-center rounded-full"
       >
         {icon}
       </span>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
-import { ChevronDownIcon, useDismiss } from "@/components/ui";
+import { ChevronDownIcon, MenuIcon, useDismiss } from "@/components/ui";
 import type { CategoryNode } from "@/lib/erp";
 import { cx } from "@/lib/utils";
 
@@ -37,10 +37,10 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] }) {
 
   const linkClasses = (href: string) =>
     cx(
-      "text-body-sm inline-flex h-12 items-center border-b-2 px-3 font-bold whitespace-nowrap",
+      "text-body-sm inline-flex h-12 items-center border-b-2 px-3 font-semibold whitespace-nowrap transition-colors",
       pathname === href
         ? "border-primary text-primary"
-        : "text-foreground hover:text-primary border-transparent",
+        : "text-muted-foreground hover:text-foreground border-transparent",
     );
 
   return (
@@ -53,8 +53,14 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] }) {
             aria-expanded={open}
             aria-controls={panelId}
             onClick={() => setOpen((v) => !v)}
-            className="text-body-sm text-foreground hover:text-primary inline-flex h-12 items-center gap-1 px-3 font-bold"
+            className={cx(
+              "text-body-sm inline-flex h-9 items-center gap-2 rounded-full px-4 font-bold transition-colors",
+              open
+                ? "bg-secondary text-secondary-foreground"
+                : "bg-surface-muted text-foreground hover:bg-border",
+            )}
           >
+            <MenuIcon size={16} />
             All categories
             <ChevronDownIcon
               size={16}

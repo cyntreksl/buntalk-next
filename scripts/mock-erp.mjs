@@ -273,7 +273,37 @@ function seed() {
       audience: "customer_groups",
     }),
   ];
-  return { categories, products, banners: [], schemes };
+  // Home page banners (hero slider). No images: slides use brand colours.
+  const banners = [
+    {
+      link_id: "b-cake-week",
+      title: "Cake week is here",
+      subtitle: "10% off every cake, birthday cakes included.",
+      cta_label: "Shop cakes",
+      href: "/category/cakes",
+      image_url: null,
+      image_alt: null,
+    },
+    {
+      link_id: "b-bun-bonanza",
+      title: "Buy 2 fish buns, get 1 free",
+      subtitle: "Fresh out of the oven every morning.",
+      cta_label: "Shop buns",
+      href: "/category/buns",
+      image_url: null,
+      image_alt: null,
+    },
+    {
+      link_id: "b-cake-studio",
+      title: "Design your own cake",
+      subtitle: "Shape, flavour and decorations, in 3D.",
+      cta_label: "Open Cake Studio",
+      href: "/cake-studio",
+      image_url: null,
+      image_alt: null,
+    },
+  ];
+  return { categories, products, banners, schemes };
 }
 
 /** A scheme the engine may apply now (active, inside its dates, for this customer). */

@@ -205,6 +205,19 @@ Cart, checkout and account pages are never cached for other users:
 
 Styling uses Tailwind CSS v4. All design tokens live in **`styles/tokens.css`**, and every token becomes a Tailwind utility. Open **[/style-guide](http://localhost:3000/style-guide)** for a live visual reference of every colour, type size, spacing step, radius, shadow and breakpoint, plus the logos.
 
+### Look and feel (BUN-249)
+
+A clean marketplace layout, in Buntalk's own colours:
+
+- **Page and type:**
+  - The page is white. `surface-muted` is used for soft panels, product image wells and the search field.
+  - Headings are an extra-bold sans (Nunito). The rounded brand face (Baloo 2) is kept for big hero headlines (`text-display`).
+- **Shapes:**
+  - Buttons, the search box, chips and category tiles are pills or circles (`rounded-full`).
+  - Cards and tiles use large radii (`rounded-xl`, and `rounded-2xl` for banners).
+  - Product cards have no border or shadow: a rounded photo well, a two-line name and the price.
+- **Price:** shown as a bold amount with a small currency code ("LKR **4,500.00**").
+
 ### Rules
 
 - **No hard-coded colours.** Use semantic colour tokens (`bg-primary`, `text-heading`, `border-border`, …). ESLint fails on hex, `rgb()`, `hsl()` and `oklch()` colours in `app/`, `components/` and `features/`.
@@ -395,13 +408,13 @@ Shared pieces:
 
 `components/layout/header/SiteHeader.tsx` is shown on every page in the `(site)` group. Checkout uses its own minimal header.
 
-| Part       | Phone / tablet (below `lg`)                                                 | Desktop (`lg`+)                                                        |
-| ---------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Navigation | ☰ button opens a drawer: search, categories, account links, cart, language | "All categories" mega-menu plus direct links to the first 6 categories |
-| Search     | In the drawer                                                               | Search box in the header (a plain form to `/search`)                   |
-| Cart       | Bag icon with item count                                                    | Same                                                                   |
-| Account    | Person icon opens the account / sign-in menu                                | Same, with a "Sign in" or "Account" label at `xl`                      |
-| Language   | In the drawer                                                               | Slot next to the account menu (switcher comes with BUN-211)            |
+| Part       | Phone / tablet (below `lg`)                                   | Desktop (`lg`+)                                                                                                      |
+| ---------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Navigation | ☰ button opens a drawer: categories, account links, language | "All categories" pill (mega-menu) plus links to the first 6 categories; "Cake Studio" and "Our outlets" on the right |
+| Search     | Pill search box in its own row under the logo, always visible | Wide pill search box between the logo and the account links (a plain form to `/search`)                              |
+| Cart       | Bag icon with item count                                      | Same, with a "Cart" label                                                                                            |
+| Account    | Person icon opens the account / sign-in menu                  | Same, with a "Sign in" or "Account" label                                                                            |
+| Language   | In the drawer                                                 | Slot next to the account menu (switcher comes with BUN-211)                                                          |
 
 ### How it works
 
@@ -410,7 +423,7 @@ Shared pieces:
   - **Cart count:** `CartButton` reads the cart store, so the count changes as soon as an item is added. The server always renders "Cart, empty".
   - **Signed-in state:** `AccountMenu` calls `GET /api/session` (never cached), which returns only `{ signedIn }`.
 - **It stays at the top when scrolling.** The header uses `position: sticky` and gets a shadow once the page scrolls.
-  - Its height is in `--header-height` (`styles/globals.css`).
+  - Its height is in `--header-height` (`styles/globals.css`): 120px on phones and tablets (top row plus search row), 112px from `lg`.
   - Sticky columns use `top-(--sticky-offset)` so they sit below the header, and anchor links scroll their target clear of it.
   - If you change the header's height, update the variable.
 
@@ -477,21 +490,28 @@ The values were checked against the old site (buntalk.lk) on 22 Nov 2026:
 
 `app/(site)/(catalog)/page.tsx` uses the full-width template. Sections live in `features/home/`.
 
-| Section                     | Data                                                                                                                                            | Shown when                                            |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Hero + promos               | `getHomeBanners()`: first banner is the hero, next two are promo cards                                                                          | Always (branded welcome hero if there are no banners) |
-| Shop by category            | `getCategories()`                                                                                                                               | There are categories                                  |
-| Current offers              | `getOfferProducts()`: products with `compareAtPrice` above `price`                                                                              | There are offers                                      |
-| Featured                    | `getFeaturedProducts()`                                                                                                                         | There are featured products                           |
-| Cake Studio                 | Static call to action, linking to `/cake-studio` (placeholder until BUN-179 to BUN-183)                                                         | Always                                                |
-| Delivery, outlets, payments | `lib/site-config.ts` (`deliveryAreas`, `outlets`, `paymentMethods`). States only configured facts; otherwise links to the policy or outlet page | Always                                                |
-| Newsletter                  | Sign-up slot (disabled until a mailing-list service is connected)                                                                               | Always. The footer hides its own copy on this page    |
+| Section                     | Data                                                                                                                                                           | Shown when                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Hero slider + deal tile     | `getHomeBanners()` as a swipeable slider (2/3 width); the deal tile shows the product with the biggest saving from `getOfferProducts()`, or a Cake Studio tile | Always (branded welcome slide if there are no banners) |
+| Explore our categories      | `getCategories()`: top-level categories as round tiles in a scrolling row with arrow buttons                                                                   | There are categories                                   |
+| Today's best deals for you  | `getOfferProducts()` as a product row                                                                                                                          | There are offers                                       |
+| Collection tiles            | The first three top-level categories as tall promo tiles                                                                                                       | There are categories                                   |
+| Buntalk favourites          | `getFeaturedProducts()` as a product row                                                                                                                       | There are featured products                            |
+| Best of {category}          | `getProductsByCategory()` for the first two top-level categories, with "View all"                                                                              | The category has products                              |
+| Cake Studio                 | Static band linking to `/cake-studio` (placeholder until BUN-179 to BUN-183)                                                                                   | Always                                                 |
+| Delivery, outlets, payments | `lib/site-config.ts`. States only configured facts; otherwise links to the policy or outlet page                                                               | Always                                                 |
+| Newsletter                  | Sign-up slot (disabled until a mailing-list service is connected)                                                                                              | Always. The footer hides its own copy on this page     |
+
+**Product rows** (`ProductRail`) show five products across on desktop. On phones and tablets they swipe sideways with scroll-snap, using no JavaScript.
 
 ### Live data and speed
 
 - **Live data:** every section reads through the cached ERP functions in `lib/erp`. Nothing is hard-coded.
 - **Static page:** the page is prerendered to static HTML and refreshed every 15 minutes. A `POST /api/revalidate` with `{ "type": "home" }` refreshes banners and featured content right away.
-- **No auto-rotating carousel:** it slows mobile pages, moves content while people read, and is hard to use with a keyboard or screen reader.
+- **The hero slider never moves by itself.** Auto-rotation moves content while people read, and is hard to use with a keyboard or screen reader.
+  - It moves only when the visitor swipes or uses the arrows or dots.
+  - It is plain horizontal scrolling with scroll-snap, so touch, trackpads and the keyboard all work.
+  - The dots follow the scroll position.
 - **Image priority:** only the hero image is loaded with priority.
 - **Measured locally, production build:** HTML is 14 KB gzipped and served from cache. JavaScript is about 206 KB gzipped, of which about 157 KB is React and the Next.js runtime. There's one `<h1>` and no duplicate IDs. No layout overflows at 360, 768 or 1280px.
 - **Not run:** a Lighthouse audit, which was blocked in this environment. Run it in Chrome DevTools, or use `npx lighthouse http://localhost:3000 --form-factor=mobile`.

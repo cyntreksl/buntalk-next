@@ -29,17 +29,22 @@ export function CartButton() {
     <Link
       href="/cart"
       aria-label={label}
-      className="text-foreground hover:bg-surface-muted relative inline-flex size-10 items-center justify-center rounded-md"
+      className="text-foreground hover:bg-surface-muted inline-flex h-10 items-center gap-1.5 rounded-full px-2.5"
     >
-      <BagIcon size={22} />
-      {shown > 0 && (
-        <span
-          aria-hidden="true"
-          className="bg-primary text-primary-foreground text-caption absolute -top-0.5 -right-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 font-bold"
-        >
-          {shown > 99 ? "99+" : shown}
-        </span>
-      )}
+      <span className="relative inline-flex">
+        <BagIcon size={22} />
+        {shown > 0 && (
+          <span
+            aria-hidden="true"
+            className="bg-primary text-primary-foreground text-caption absolute -top-2 -right-2.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 font-bold"
+          >
+            {shown > 99 ? "99+" : shown}
+          </span>
+        )}
+      </span>
+      <span aria-hidden="true" className="text-body-sm hidden font-bold lg:inline">
+        Cart
+      </span>
     </Link>
   );
 }
