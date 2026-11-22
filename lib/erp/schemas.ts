@@ -77,6 +77,12 @@ export const erpSkuSchema = z.object({
   visible_online: z.boolean().optional(),
   /** NEW: whether this SKU can be ordered online now. */
   in_stock: z.boolean().optional(),
+  /** NEW (BUN-171, ticket BUN-257): photo of this size/variant; shown when it's picked. */
+  image_url: imageUrl.optional(),
+  /** NEW (BUN-257): net weight of this size in grams (from the option values' grams). */
+  net_weight_grams: z.number().positive().nullable().optional(),
+  /** NEW (BUN-257): how many people this size serves. */
+  servings: z.number().int().positive().nullable().optional(),
   price: erpPriceSchema,
 });
 
@@ -87,6 +93,12 @@ export const erpProductSchema = z.object({
   slug: z.string().min(1),
   name: z.string(),
   description: z.string().nullable(),
+  /** NEW (BUN-171, ticket BUN-257): one or two lines shown next to the price. */
+  short_description: z.string().nullable().optional(),
+  /** NEW (BUN-257): net weight in grams (EndProduct gram_weight). */
+  net_weight_grams: z.number().positive().nullable().optional(),
+  /** NEW (BUN-257): how many people it serves. */
+  servings: z.number().int().positive().nullable().optional(),
   category: erpCategorySchema.pick({ link_id: true, slug: true, name: true }),
   /** Product photo (EndProduct::imageUrl(), as in the staff API's EndProductResource). */
   image_url: imageUrl,

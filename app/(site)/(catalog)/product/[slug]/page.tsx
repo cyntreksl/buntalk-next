@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DetailTemplate } from "@/components/layout/templates";
 import { ProductPurchase } from "@/features/cart";
-import { OfferList, ProductImage, ProductRail } from "@/features/catalog";
+import { OfferList, ProductRail } from "@/features/catalog";
+import { EarliestReady, ProductGallery, SelectedSkuProvider } from "@/features/product";
 import { categoryTrail } from "@/lib/categories";
+import { defaultSkuId } from "@/lib/pricing";
+import { formatWeight } from "@/lib/utils";
 import { getCategories, getFeaturedProducts, getProduct, getProductsByCategory } from "@/lib/erp";
 
 // Product: detail template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
@@ -54,62 +57,98 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
     ? formatProcessingTime(product.processingTimeHours)
     : null;
 
+  // Short text by the price; the full description under "Product details".
+  // Until the ERP sends short_description (BUN-257), the description is shown
+  // there too, cut to three lines with a link down to the rest.
+  const summaryText = product.shortDescription ?? product.description;
+  const clipSummary = !product.shortDescription && product.description.length > 160;
+
   const details = [
     product.code && { label: "Item code", value: product.code },
     category && { label: "Category", value: category.name },
+    product.netWeightGrams && { label: "Net weight", value: formatWeight(product.netWeightGrams) },
+    product.servings && { label: "Servings", value: `Serves ${product.servings}` },
     ...(product.attributes ?? []).map((a) => ({ label: a.name, value: a.values.join(", ") })),
     readyIn && { label: "Preparation time", value: readyIn },
   ].filter(Boolean) as { label: string; value: string }[];
 
   return (
-    <DetailTemplate
-      breadcrumb={[
-        { label: "Home", href: "/" },
-        ...trail.map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
-        { label: product.name },
-      ]}
-      media={<ProductImage product={product} priority />}
-      summary={
-        <>
-          <h1 className="text-h1 break-words">{product.name}</h1>
-          {product.description && <p className="text-muted-foreground">{product.description}</p>}
-          {readyIn && <p className="text-body-sm font-semibold">Ready in {readyIn}</p>}
-          {/* Price (per size), size picker and add to cart. Prices are the ERP's online prices. */}
-          <ProductPurchase product={product} />
-          {/* ERP scheme offers on this product. Applied by the ERP in the cart, never here. */}
-          {product.offers && product.offers.length > 0 && (
-            <OfferList offers={product.offers} currency={product.currency} />
-          )}
-        </>
-      }
-    >
-      <div className="flex flex-col gap-10 md:gap-14">
-        <section aria-labelledby="product-details" className="flex max-w-prose flex-col gap-4">
-          <h2 id="product-details" className="text-h3">
-            Product details
-          </h2>
-          {product.description && <p>{product.description}</p>}
-          {details.length > 0 && (
-            <dl className="border-border divide-border divide-y border-y">
-              {details.map((d) => (
-                <div key={d.label} className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-2.5">
-                  <dt className="text-body-sm text-muted-foreground font-bold">{d.label}</dt>
-                  <dd className="text-body-sm break-words">{d.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </section>
-        {related.length > 0 && (
-          <section aria-labelledby="related-products" className="flex flex-col gap-4">
-            <h2 id="related-products" className="text-h3">
-              You may also like
+    // Shares the picked size between the size picker and the gallery (photo per size).
+    <SelectedSkuProvider initialSkuId={defaultSkuId(product.skus)}>
+      <DetailTemplate
+        breadcrumb={[
+          { label: "Home", href: "/" },
+          ...trail.map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
+          { label: product.name },
+        ]}
+        media={
+          <ProductGallery
+            product={{ name: product.name, imageUrls: product.imageUrls, skus: product.skus }}
+          />
+        }
+        summary={
+          <>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-h1 break-words">{product.name}</h1>
+              {summaryText && (
+                <p
+                  className={
+                    clipSummary ? "text-muted-foreground line-clamp-3" : "text-muted-foreground"
+                  }
+                >
+                  {summaryText}
+                </p>
+              )}
+              {(clipSummary || product.shortDescription) && product.description && (
+                <a
+                  href="#product-details"
+                  className="text-body-sm text-primary font-bold underline-offset-4 hover:underline"
+                >
+                  Read more
+                </a>
+              )}
+            </div>
+            {/* Price (per size), size picker and add to cart, or "Customize in Cake Studio".
+              Prices are the ERP's online prices. */}
+            <ProductPurchase product={product} />
+            {product.processingTimeHours && readyIn && (
+              <EarliestReady hours={product.processingTimeHours} readyIn={readyIn} />
+            )}
+            {/* ERP scheme offers on this product. Applied by the ERP in the cart, never here. */}
+            {product.offers && product.offers.length > 0 && (
+              <OfferList offers={product.offers} currency={product.currency} />
+            )}
+          </>
+        }
+      >
+        <div className="flex flex-col gap-10 md:gap-14">
+          <section aria-labelledby="product-details" className="flex max-w-prose flex-col gap-4">
+            <h2 id="product-details" className="text-h3 scroll-mt-(--sticky-offset)">
+              Product details
             </h2>
-            <ProductRail products={related} />
+            {product.description && <p>{product.description}</p>}
+            {details.length > 0 && (
+              <dl className="border-border divide-border divide-y border-y">
+                {details.map((d) => (
+                  <div key={d.label} className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-2.5">
+                    <dt className="text-body-sm text-muted-foreground font-bold">{d.label}</dt>
+                    <dd className="text-body-sm break-words">{d.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </section>
-        )}
-      </div>
-    </DetailTemplate>
+          {related.length > 0 && (
+            <section aria-labelledby="related-products" className="flex flex-col gap-4">
+              <h2 id="related-products" className="text-h3">
+                You may also like
+              </h2>
+              <ProductRail products={related} />
+            </section>
+          )}
+        </div>
+      </DetailTemplate>
+    </SelectedSkuProvider>
   );
 }
 
