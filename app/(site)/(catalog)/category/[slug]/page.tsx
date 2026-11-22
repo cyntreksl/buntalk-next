@@ -5,10 +5,11 @@ import { ListingTemplate } from "@/components/layout/templates";
 import { BagIcon, EmptyState, buttonClasses } from "@/components/ui";
 import { Suspense } from "react";
 import { CategoryNav, ProductGridSkeleton } from "@/features/catalog";
+import { ProductFilters } from "@/features/catalog/ProductFilters";
 import { ProductListing } from "@/features/catalog/ProductListing";
 import { CategoryHeader } from "@/features/catalog/CategoryHeader";
 import { SubcategoryLinks } from "@/features/catalog/SubcategoryLinks";
-import { categoryTrail } from "@/lib/categories";
+import { categoryChoices, categoryTrail } from "@/lib/categories";
 import { getCategories, getCategory, getProductsByCategory } from "@/lib/erp";
 
 // Category landing page (BUN-160, BUN-168): banner header with breadcrumb, sub-category
@@ -48,6 +49,9 @@ export default async function CategoryPage({
   ]);
   if (!category) notFound();
 
+  // Filter by sub-category (BUN-173); each covers its own sub-categories too.
+  const choices = categoryChoices(categories, category.slug);
+
   const breadcrumb = [
     { label: "Home", href: "/" },
     { label: "Categories", href: "/categories" },
@@ -71,16 +75,32 @@ export default async function CategoryPage({
           <SubcategoryLinks categories={categories} current={category.slug} />
         </div>
       }
-      sidebarTitle="Categories"
-      sidebar={<CategoryNav categories={categories} current={category.slug} />}
+      sidebarTitle="Filters"
+      sidebar={
+        <>
+          {/* Filters read the URL, so they stream in like the grid (BUN-173). */}
+          <Suspense fallback={null}>
+            <ProductFilters
+              products={products}
+              searchParams={searchParams}
+              basePath={`/category/${category.slug}`}
+              categoryChoices={choices}
+            />
+          </Suspense>
+          <div className="border-border border-t pt-5">
+            <CategoryNav categories={categories} current={category.slug} />
+          </div>
+        </>
+      }
     >
-      {/* Sorting and paging read ?sort= and ?page=, so the grid renders per request
+      {/* Filters, sorting and paging read the URL, so the grid renders per request
           (streamed into the prerendered page; data comes from the cached ERP read). */}
       <Suspense fallback={<ProductGridSkeleton count={8} />}>
         <ProductListing
           products={products}
           searchParams={searchParams}
           basePath={`/category/${category.slug}`}
+          categoryChoices={choices}
           empty={
             <EmptyState
               icon={<BagIcon size={32} />}

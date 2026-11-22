@@ -92,27 +92,28 @@ tables today.
 
 ### Product (`EndProduct`)
 
-| Field                                               | Type                      | Notes                                                                                                                               |
-| --------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `link_id`, `code`                                   | uuid, string              |                                                                                                                                     |
-| `slug`                                              | string                    | **NEW**. URL name, unique per tenant                                                                                                |
-| `name`                                              | string                    |                                                                                                                                     |
-| `description`                                       | string, null              | The full description ("Product details")                                                                                            |
-| `short_description`                                 | string, null              | **NEW** (BUN-171, ticket BUN-257). One or two lines next to the price. Until then, the first lines of `description` are shown there |
-| `net_weight_grams`                                  | number, null              | **NEW** (BUN-257). From `gram_weight`                                                                                               |
-| `servings`                                          | integer, null             | **NEW** (BUN-257). "Serves 8"                                                                                                       |
-| `category`                                          | `{ link_id, slug, name }` |                                                                                                                                     |
-| `image_url`                                         | url, null                 | The product photo (`EndProduct::imageUrl()`, as in the staff `EndProductResource`). Missing or invalid = placeholder image          |
-| `gallery_urls`                                      | url[]                     | **NEW**. Extra photos                                                                                                               |
-| `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`)                                           |
-| `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing                  |
-| `is_active`, `is_customisable`, `allows_fractional` | boolean                   | `is_customisable`: Cake Studio product; the card shows "Customize" instead of "Add to cart" (BUN-170)                               |
-| `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                                        |
-| `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                                       |
-| `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"                        |
-| `created_at`                                        | ISO datetime, null        | **NEW** (BUN-169, ticket BUN-256). When first published; powers "Newest"                                                            |
-| `price`                                             | Price                     | Product default price                                                                                                               |
-| `skus`                                              | Sku[]                     |                                                                                                                                     |
+| Field                                               | Type                      | Notes                                                                                                                                                 |
+| --------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `link_id`, `code`                                   | uuid, string              |                                                                                                                                                       |
+| `slug`                                              | string                    | **NEW**. URL name, unique per tenant                                                                                                                  |
+| `name`                                              | string                    |                                                                                                                                                       |
+| `description`                                       | string, null              | The full description ("Product details")                                                                                                              |
+| `short_description`                                 | string, null              | **NEW** (BUN-171, ticket BUN-257). One or two lines next to the price. Until then, the first lines of `description` are shown there                   |
+| `net_weight_grams`                                  | number, null              | **NEW** (BUN-257). From `gram_weight`                                                                                                                 |
+| `servings`                                          | integer, null             | **NEW** (BUN-257). "Serves 8"                                                                                                                         |
+| `category`                                          | `{ link_id, slug, name }` |                                                                                                                                                       |
+| `image_url`                                         | url, null                 | The product photo (`EndProduct::imageUrl()`, as in the staff `EndProductResource`). Missing or invalid = placeholder image                            |
+| `gallery_urls`                                      | url[]                     | **NEW**. Extra photos                                                                                                                                 |
+| `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`). Each one is a filter (Size, Flavour) on listings (BUN-173) |
+| `tags`                                              | `{ group, value }[]`      | **NEW** (BUN-173, ticket BUN-258). Filter tags, e.g. `{ group: "Occasion", value: "Birthday" }`. Only active tags in groups shown on the website      |
+| `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing                                    |
+| `is_active`, `is_customisable`, `allows_fractional` | boolean                   | `is_customisable`: Cake Studio product; the card shows "Customize" instead of "Add to cart" (BUN-170)                                                 |
+| `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                                                          |
+| `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                                                         |
+| `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"                                          |
+| `created_at`                                        | ISO datetime, null        | **NEW** (BUN-169, ticket BUN-256). When first published; powers "Newest"                                                                              |
+| `price`                                             | Price                     | Product default price                                                                                                                                 |
+| `skus`                                              | Sku[]                     |                                                                                                                                                       |
 
 ### Sku (`EndProductSku`)
 
@@ -337,6 +338,7 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-255 | Catalog change feed (`updated_since`) for the scheduled check             | BUN-167                   |
 | BUN-256 | Product popularity and publish date (sorting)                             | BUN-169                   |
 | BUN-257 | Product page details: short description, photo per size, weight, servings | BUN-171                   |
+| BUN-258 | Product tags for filters (occasion and other tag groups)                  | BUN-173                   |
 
 ## 6. Open questions for the ERP team
 

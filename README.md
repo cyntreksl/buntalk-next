@@ -816,6 +816,20 @@ The ERP is the single source of truth for categories and products. The storefron
   - The catalog layout requires the shell and prefetch to be static (`ensureStatic = 'prefetch'`). Home, all-categories and product pages require the complete page (`'navigation'`).
   - On category pages the header, banner and sidebar are prerendered. The product grid depends on the URL, so it renders per request from the cached ERP read, inside `<Suspense>` with a skeleton, and is streamed into the same server-rendered response.
 
+### Filters (BUN-173)
+
+- **Where:** category pages and search results, in the sidebar on desktop and in the "Filters" drawer on phones and tablets. `ProductFilters` (sidebar) and `ProductListing` (grid) read the same URL, and the filter logic is in `lib/filters.ts`.
+- **Filters:**
+  - **Category:** the sub-categories of the current category (top-level categories on search). Each includes its own sub-categories.
+  - **Price range:** min and max, against the price on the card (the lowest size price).
+  - **On offer:** an ERP scheme applies now.
+  - **Product options** from the ERP (Size, Flavour…) and **ERP tags** such as Occasion (`tags`, ERP ticket BUN-258).
+- **Combining:** values within one filter are "any of" (1 kg or 2 kg); different filters must all match.
+- **In the URL:** `?cat=birthday-cakes&min=1000&max=5000&offer=1&size=2+kg&flavour=Vanilla`, together with `sort`. Changing a filter goes back to page 1 and keeps the search text and sort. Unknown parameters (for example `utm_source`) are ignored.
+- **Options shown:** only values that exist in the current results, with how many products each gives. Each filter's counts apply the other filters, so ticking a second size adds products. A ticked value stays listed so it can be unticked.
+- **Active filter chips** above the grid, each removing one filter, plus "Clear all". The product count updates after every change ("2 products (filtered from 3)") and is announced to screen readers. When nothing matches, a "No products match these filters" message offers "Clear all filters".
+- **How it works:** ticking a box navigates straight to the new URL, and the server sends the new results and counts. The boxes keep keyboard focus. Without JavaScript the panel is a plain GET form with an "Apply filters" button.
+
 ### Products
 
 These ERP fields map to storefront fields:
@@ -833,6 +847,7 @@ These ERP fields map to storefront fields:
 | `net_weight_grams`, `servings` (BUN-257) | `netWeightGrams`, `servings` (product and size)   |
 | SKU `image_url` (BUN-257)                | `skus[].imageUrl`, the size's own photo           |
 | `is_customisable`                        | `customizable` (Cake Studio product)              |
+| `tags` (BUN-258)                         | `tags`, e.g. Occasion: Birthday (filters)         |
 
 ### Product card (BUN-170)
 
@@ -956,7 +971,7 @@ The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock 
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). For the product page (BUN-171), the fish bun has gallery photos (one broken), a short description, weight and servings, and the cake sizes have their own photos, weights and servings. `GET /images/gen/<label>.svg?bg=<hex>` draws a test photo. `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). For filters (BUN-173), the cakes have sizes, flavours and Occasion tags, and there is a vanilla wedding cake. For the product page (BUN-171), the fish bun has gallery photos (one broken), a short description, weight and servings, and the cake sizes have their own photos, weights and servings. `GET /images/gen/<label>.svg?bg=<hex>` draws a test photo. `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 

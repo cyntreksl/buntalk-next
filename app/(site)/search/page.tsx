@@ -7,7 +7,9 @@ import { ProductGridSkeleton } from "@/features/catalog";
 import { ProductListing } from "@/features/catalog/ProductListing";
 import { CategorySuggestions } from "@/features/catalog/CategorySuggestions";
 import { getDb } from "@/lib/db";
-import { searchProducts } from "@/lib/erp";
+import { ProductFilters } from "@/features/catalog/ProductFilters";
+import { categoryChoices } from "@/lib/categories";
+import { getCategories, searchProducts } from "@/lib/erp";
 import { recordSearchMiss } from "@/lib/search-misses";
 
 // Search (BUN-172): listing template without a sidebar. Dynamic: the page frame
@@ -20,9 +22,29 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
+async function readQuery(searchParams: PageProps<"/search">["searchParams"]) {
   const { q } = await searchParams;
-  const query = typeof q === "string" ? q.trim() : "";
+  return typeof q === "string" ? q.trim() : "";
+}
+
+/** Filter sidebar for the results (BUN-173): top-level categories, price, offers, options. */
+async function SearchFilters({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
+  const query = await readQuery(searchParams);
+  if (!query) return null;
+  const [products, categories] = await Promise.all([searchProducts(query), getCategories()]);
+  return (
+    <ProductFilters
+      products={products}
+      searchParams={searchParams}
+      basePath="/search"
+      keep={[["q", query]]}
+      categoryChoices={categoryChoices(categories)}
+    />
+  );
+}
+
+async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
+  const query = await readQuery(searchParams);
   if (!query) {
     return (
       <EmptyState
@@ -35,7 +57,7 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
     );
   }
 
-  const products = await searchProducts(query);
+  const [products, categories] = await Promise.all([searchProducts(query), getCategories()]);
   if (products.length === 0) {
     // Count it for the team (GET /api/search/misses), after the page is sent.
     after(async () => {
@@ -70,7 +92,8 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
         products={products}
         searchParams={searchParams}
         basePath="/search"
-        keep={{ q: query }}
+        keep={[["q", query]]}
+        categoryChoices={categoryChoices(categories)}
       />
     </section>
   );
@@ -80,6 +103,11 @@ export default function SearchPage({ searchParams }: PageProps<"/search">) {
   return (
     <ListingTemplate
       title="Search"
+      sidebar={
+        <Suspense fallback={null}>
+          <SearchFilters searchParams={searchParams} />
+        </Suspense>
+      }
       toolbar={
         <form action="/search" role="search" className="flex w-full gap-2">
           <label htmlFor="search-q" className="sr-only">

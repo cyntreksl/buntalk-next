@@ -73,6 +73,8 @@ export type Product = {
   /** Photos, main one first. Empty or missing = show the placeholder image. */
   imageUrls?: string[];
   attributes?: ProductAttribute[];
+  /** Filter tags from the ERP, e.g. { group: "Occasion", value: "Birthday" } (BUN-258). */
+  tags?: { group: string; value: string }[];
   /** Hours the bakery needs to prepare it, if the ERP sets one. */
   processingTimeHours?: number;
   skus?: Sku[];

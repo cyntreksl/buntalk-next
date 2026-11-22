@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCategoryTree,
+  categoryChoices,
   categoryTrail,
   descendantSlugs,
   popularCategories,
@@ -94,5 +95,27 @@ describe("popularCategories", () => {
 
   it("keeps the ERP order without popularity data, and respects the limit", () => {
     expect(popularCategories(categories, [], 2).map((c) => c.slug)).toEqual(["cakes", "buns"]);
+  });
+});
+
+describe("categoryChoices", () => {
+  const categories = [
+    cat("cakes", 1),
+    cat("birthday", 3, "cakes"),
+    cat("kids", 1, "birthday"),
+    cat("buns", 2),
+  ];
+
+  it("offers the sub-categories of the current category, each with its own sub-categories", () => {
+    expect(categoryChoices(categories, "cakes")).toEqual([
+      { slug: "birthday", name: "BIRTHDAY", slugs: ["birthday", "kids"] },
+    ]);
+  });
+
+  it("offers the top-level categories without a parent (search)", () => {
+    expect(categoryChoices(categories).map((c) => [c.slug, c.slugs])).toEqual([
+      ["cakes", ["cakes", "birthday", "kids"]],
+      ["buns", ["buns"]],
+    ]);
   });
 });

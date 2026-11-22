@@ -23,7 +23,10 @@ export function ListingSidebar({ title, children }: { title: string; children: R
         </Drawer>
       </div>
       <aside aria-label={title} className="hidden lg:block">
-        <div className="sticky top-(--sticky-offset) flex flex-col gap-4">{children}</div>
+        {/* Scrolls on its own when the filters are taller than the screen. */}
+        <div className="sticky top-(--sticky-offset) flex max-h-[calc(100dvh-var(--sticky-offset)-1rem)] flex-col gap-6 overflow-y-auto pr-1 pb-4">
+          {children}
+        </div>
       </aside>
     </>
   );

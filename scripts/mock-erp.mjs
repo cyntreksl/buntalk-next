@@ -188,8 +188,11 @@ function seed() {
       image_url: "not a valid url",
       attributes: [
         { name: "Size", values: ["1 kg", "2 kg"] },
+        { name: "Flavour", values: ["Chocolate"] },
         { name: "Message", values: ["Happy Birthday", "Custom"] },
       ],
+      // BUN-173 (ERP ticket BUN-258): filter tags.
+      tags: [{ group: "Occasion", value: "Birthday" }],
       processing_time_hours: 48,
       // Sizes with their own prices (BUN-162). 3 kg is sold out online.
       image_url: `${ORIGIN}/images/gen/Chocolate%20cake.svg?bg=c99a7a`,
@@ -218,6 +221,24 @@ function seed() {
       price: price(5000),
       is_customisable: true,
       processing_time_hours: 72,
+      attributes: [{ name: "Flavour", values: ["Chocolate", "Vanilla", "Red velvet"] }],
+      tags: [
+        { group: "Occasion", value: "Birthday" },
+        { group: "Occasion", value: "Anniversary" },
+      ],
+    },
+    {
+      // BUN-173: a wedding cake, for size/flavour/occasion filters.
+      slug: "vanilla-wedding-cake",
+      name: "Vanilla wedding cake",
+      category: cat("wedding-cakes"),
+      price: price(15000),
+      processing_time_hours: 96,
+      attributes: [
+        { name: "Size", values: ["2 kg", "3 kg"] },
+        { name: "Flavour", values: ["Vanilla"] },
+      ],
+      tags: [{ group: "Occasion", value: "Wedding" }],
     },
     {
       // Switched off for the website (BUN-161): never shown, can't be added to the cart.
@@ -245,6 +266,7 @@ function seed() {
     is_featured: false,
     gallery_urls: [],
     attributes: [],
+    tags: [],
     processing_time_hours: null,
     skus: [],
     // BUN-169: sort data (popularity = recent units sold; created_at = when published).

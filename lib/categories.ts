@@ -106,3 +106,23 @@ export function popularCategories(
     .map(({ c }) => c)
     .slice(0, limit);
 }
+
+/**
+ * Categories offered as a filter on a listing (BUN-173): the sub-categories
+ * of `parentSlug`, or the top-level categories when there is none (search).
+ * Each covers itself and its own sub-categories.
+ */
+export function categoryChoices(
+  categories: Category[],
+  parentSlug?: string,
+): { slug: string; name: string; slugs: string[] }[] {
+  const parent = parentSlug ? categories.find((c) => c.slug === parentSlug) : undefined;
+  const level = parentSlug
+    ? sortByErpOrder(categories.filter((c) => parent?.id !== undefined && c.parentId === parent.id))
+    : topLevelCategories(categories);
+  return level.map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    slugs: descendantSlugs(categories, c.slug),
+  }));
+}
