@@ -14,6 +14,8 @@ export type Category = {
   description: string;
   /** Absolute image URL from the ERP. Optional: a branded tile is shown without it. */
   imageUrl?: string;
+  /** Wide banner for the category page header (falls back to imageUrl, then a branded panel). */
+  bannerUrl?: string;
   /** Parent category's id; undefined for a top-level category. */
   parentId?: string;
   /** ERP display order (lower first). Lists keep this order; never re-sorted by name. */

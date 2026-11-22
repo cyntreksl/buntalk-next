@@ -4,10 +4,14 @@ import { notFound } from "next/navigation";
 import { ListingTemplate } from "@/components/layout/templates";
 import { BagIcon, EmptyState, buttonClasses } from "@/components/ui";
 import { CategoryNav, ProductGrid } from "@/features/catalog";
+import { CategoryHeader } from "@/features/catalog/CategoryHeader";
+import { SubcategoryLinks } from "@/features/catalog/SubcategoryLinks";
 import { categoryTrail } from "@/lib/categories";
 import { getCategories, getCategory, getProductsByCategory } from "@/lib/erp";
 
-// Category: listing template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
+// Category landing page (BUN-160, BUN-168): banner header with breadcrumb, sub-category
+// links, sidebar tree and products (including sub-categories), all in ERP order.
+// Static + ISR, "catalog" cache profile, refreshed by the ERP webhook — see README.
 
 // The page reads `params` before rendering so its HTML is always complete
 // (no loading placeholder, see the (catalog) layout). That intentionally blocks
@@ -39,25 +43,31 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
   ]);
   if (!category) notFound();
 
+  const breadcrumb = [
+    { label: "Home", href: "/" },
+    { label: "Categories", href: "/categories" },
+    // Parent categories first, then this one (not a link: it is the current page).
+    ...categoryTrail(categories, category.slug)
+      .slice(0, -1)
+      .map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
+    { label: category.name },
+  ];
+
   return (
     <ListingTemplate
       title={category.name}
-      description={category.description}
-      breadcrumb={[
-        { label: "Home", href: "/" },
-        // Parent categories first, then this one (not a link: it is the current page).
-        ...categoryTrail(categories, category.slug)
-          .slice(0, -1)
-          .map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
-        { label: category.name },
-      ]}
+      header={
+        <div className="flex flex-col gap-5">
+          <CategoryHeader
+            category={category}
+            breadcrumb={breadcrumb}
+            productCount={products.length}
+          />
+          <SubcategoryLinks categories={categories} current={category.slug} />
+        </div>
+      }
       sidebarTitle="Categories"
       sidebar={<CategoryNav categories={categories} current={category.slug} />}
-      toolbar={
-        <p className="text-body-sm text-muted-foreground">
-          {products.length} product{products.length === 1 ? "" : "s"}
-        </p>
-      }
     >
       <ProductGrid
         products={products}

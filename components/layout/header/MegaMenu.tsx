@@ -118,6 +118,15 @@ export function MegaMenu({ categories }: { categories: CategoryNode[] }) {
             </div>
           ))}
         </div>
+        <div className="border-border max-w-page mx-auto border-t px-6 py-3">
+          <Link
+            href="/categories"
+            prefetch={true}
+            className="text-body-sm text-primary inline-flex items-center gap-1 font-bold hover:underline"
+          >
+            View all categories
+          </Link>
+        </div>
       </div>
     </div>
   );

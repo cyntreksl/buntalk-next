@@ -112,6 +112,13 @@ function seed() {
       sort_order: 1,
     },
     {
+      link_id: "c-wedding",
+      slug: "wedding-cakes",
+      name: "Wedding cakes",
+      parent_link_id: "c-cakes",
+      sort_order: 2,
+    },
+    {
       link_id: "c-hidden",
       slug: "hidden",
       name: "Inactive category",

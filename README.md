@@ -786,6 +786,18 @@ The ERP is the single source of truth for categories and products. The storefron
 - **Parent pages** list products from their sub-categories too.
 - **Missing parent:** a category whose parent is missing is shown at the top level rather than hidden.
 
+### Category pages (BUN-168)
+
+- **URLs:** clean addresses: `/category/birthday-cakes` for one category, `/categories` for all of them.
+- **Every visible ERP category has a page.** All are prerendered at build time, and a new category is built on its first visit. Hidden ones return 404 (BUN-161).
+- **Header** (`features/catalog/CategoryHeader.tsx`):
+  - A breadcrumb: Home › Categories › parents › category.
+  - A banner with the name (the page's `<h1>`), the description and the product count.
+  - The banner uses the ERP's wide `banner_url`, else the category image, else a branded panel with the category's initial.
+- **Sub-categories** (`SubcategoryLinks`): chips for the category's sub-categories in ERP order. A category without sub-categories shows its sister categories instead ("More in Cakes").
+- **Sidebar:** the full category tree, with the current category highlighted. On phones it's in a "Categories" drawer.
+- **All categories** (`/categories`): every top-level category with its sub-categories, in ERP order. It's linked from the mega-menu ("View all categories"), the home page ("View all") and the breadcrumb.
+
 ### Products
 
 These ERP fields map to storefront fields:
