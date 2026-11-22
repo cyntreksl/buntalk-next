@@ -18,6 +18,10 @@
  *   POST /__mock/reset           back to the seed data
  *   GET  /__mock/state           everything
  * Static test images: GET /images/<file> (serves public/brand/*).
+ *
+ * Like the real ERP, the mock sends hidden items too (is_active: false,
+ * visible_online: false); the storefront must filter them out (BUN-161).
+ * Hide a product:  POST /__mock/products {"slug":"fish-bun","visible_online":false}
  */
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -55,6 +59,14 @@ function seed() {
       name: "Inactive category",
       sort_order: 0,
       is_active: false,
+    },
+    {
+      // Active in the ERP but switched off for the website (BUN-161).
+      link_id: "c-wholesale",
+      slug: "wholesale",
+      name: "Wholesale only",
+      sort_order: 4,
+      visible_online: false,
     },
   ].map((c) => ({
     description: `${c.name} from the mock ERP.`,
@@ -104,6 +116,22 @@ function seed() {
         { name: "Message", values: ["Happy Birthday", "Custom"] },
       ],
       processing_time_hours: 48,
+    },
+    {
+      // Switched off for the website (BUN-161): never shown, can't be added to the cart.
+      slug: "staff-tea-bun",
+      name: "Staff tea bun",
+      category: cat("buns"),
+      price: price(60),
+      is_featured: true,
+      visible_online: false,
+    },
+    {
+      // Visible itself, but in a category that is hidden online.
+      slug: "bulk-bun-tray",
+      name: "Bulk bun tray",
+      category: cat("wholesale"),
+      price: price(2400),
     },
   ].map((p, i) => ({
     link_id: `p-${p.slug}`,

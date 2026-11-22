@@ -19,6 +19,7 @@ export {
   getNavigationCategories,
   getOfferProducts,
   getProduct,
+  getProductsForCart,
   getProductsByCategory,
   searchProducts,
 } from "./catalog";

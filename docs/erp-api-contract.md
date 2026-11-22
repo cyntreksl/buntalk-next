@@ -63,7 +63,7 @@ All endpoints below are **new**. ✅ = already used by the storefront (with samp
 
 Rules for catalog endpoints:
 
-- Return only active categories, products and SKUs, and only what is sold online.
+- Send each item's `is_active` and `visible_online` flags. Hidden items may be included: the storefront filters them (BUN-161), and it needs hidden parent categories to hide their sub-categories.
 - Prices are **resolved by the ERP** (`ResolveProductPrice`) for the online channel, with schemes applied, so the storefront never calculates prices itself.
 
 ## 4. Entities
@@ -73,16 +73,17 @@ tables today.
 
 ### Category (`EndProductCategory`)
 
-| Field            | Type         | Notes                                                                                                |
-| ---------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `link_id`        | uuid         |                                                                                                      |
-| `slug`           | string       | **NEW**. URL name, unique per tenant                                                                 |
-| `name`           | string       |                                                                                                      |
-| `description`    | string, null | **NEW**                                                                                              |
-| `image_url`      | url, null    | **NEW**. Absolute URL                                                                                |
-| `parent_link_id` | uuid, null   | **NEW** (BUN-160). Parent category; null = top level. Today categories are flat                      |
-| `sort_order`     | integer      | **NEW** (BUN-160). Display order, lower first. The storefront shows categories in exactly this order |
-| `is_active`      | boolean      |                                                                                                      |
+| Field            | Type         | Notes                                                                                                                |
+| ---------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `link_id`        | uuid         |                                                                                                                      |
+| `slug`           | string       | **NEW**. URL name, unique per tenant                                                                                 |
+| `name`           | string       |                                                                                                                      |
+| `description`    | string, null | **NEW**                                                                                                              |
+| `image_url`      | url, null    | **NEW**. Absolute URL                                                                                                |
+| `parent_link_id` | uuid, null   | **NEW** (BUN-160). Parent category; null = top level. Today categories are flat                                      |
+| `sort_order`     | integer      | **NEW** (BUN-160). Display order, lower first. The storefront shows categories in exactly this order                 |
+| `is_active`      | boolean      |                                                                                                                      |
+| `visible_online` | boolean      | **NEW** (BUN-161). "Show on the website". Missing = visible. Hiding a category hides its sub-categories and products |
 
 ### Product (`EndProduct`)
 
@@ -98,6 +99,7 @@ tables today.
 | `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`)                                  |
 | `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing         |
 | `is_active`, `is_customisable`, `allows_fractional` | boolean                   |                                                                                                                            |
+| `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                               |
 | `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                              |
 | `price`                                             | Price                     | Product default price                                                                                                      |
 | `skus`                                              | Sku[]                     |                                                                                                                            |
@@ -110,6 +112,7 @@ tables today.
 | `options`                    | `{ type, value }[]`       | From the SKU's option values (`combination_key`) |
 | `base_quantity`              | decimal string            |                                                  |
 | `is_active`                  | boolean                   |                                                  |
+| `visible_online`             | boolean                   | **NEW** (BUN-161). Hide one size/variant online  |
 | `in_stock`                   | boolean                   | **NEW**. Can it be ordered online now?           |
 | `price`                      | Price                     |                                                  |
 
@@ -147,14 +150,35 @@ tables today.
 | `lines[]`                                             | `sku_link_id`, `product_name`, `sku_label`, `quantity`, `unit_price`, `discount`, `line_total`   |
 | `subtotal`, `discount_total`, `delivery_fee`, `total` | decimal strings                                                                                  |
 
-## 5. Open questions for the ERP team
+## 5. ERP backlog
 
-1. **Auth:** Passport client-credentials, or per-tenant API keys? Who issues and rotates them?
-2. **Price channel:** online prices as the product default, or a dedicated "online" outlet / price level in `ProductPriceProfile`?
-3. **Slugs:** add a `slug` column to categories and products, or derive slugs from `code`?
-4. **Images:** products have one photo (`image_path` on the `central_public` disk). Which host serves it in each environment, and can products have more than one photo? The storefront needs the host for image optimisation.
-5. **Category hierarchy and order (BUN-160):** add `parent_id` and `sort_order` to `end_product_categories`, with a way to set them in the ERP?
-6. **Processing time (BUN-160):** add a preparation-time field per product (or per SKU), in hours?
-7. **Online visibility:** a flag for "sold online" per product or SKU?
-8. **Orders:** a new `type` on `PosOrder`, or a separate online-order model? Which outlet fulfils them?
-9. **Webhook:** which ERP events trigger `POST /api/revalidate` (price change, product edit, banner change)?
+Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP side)". Each ticket is linked to the storefront ticket it blocks. Add a new ticket there for any new gap.
+
+| Ticket  | ERP work                                                 | Blocks                    |
+| ------- | -------------------------------------------------------- | ------------------------- |
+| BUN-233 | API foundation: routes, machine credential, error format | BUN-159, BUN-230          |
+| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`) | BUN-160                   |
+| BUN-235 | Slugs on products and categories                         | BUN-160, BUN-246          |
+| BUN-236 | Category parent and display order                        | BUN-160                   |
+| BUN-237 | Preparation (processing) time                            | BUN-160                   |
+| BUN-238 | Public image URLs, image host, extra photos              | BUN-160                   |
+| BUN-239 | "Show on the website" switch                             | BUN-161                   |
+| BUN-240 | Featured products and home banners                       | BUN-157                   |
+| BUN-241 | Online price channel, resolved and compare-at prices     | BUN-162, BUN-174          |
+| BUN-242 | Schemes and basket price quote                           | BUN-163, BUN-177          |
+| BUN-243 | Customer create/match and read                           | BUN-166, 192, 195, 196    |
+| BUN-244 | Online orders: model, place, status                      | BUN-164, BUN-165, BUN-201 |
+| BUN-245 | Sales outlets endpoint                                   | BUN-201                   |
+| BUN-246 | Revalidate webhook calls from the ERP                    | BUN-167                   |
+
+## 6. Open questions for the ERP team
+
+1. **Auth (BUN-233):** Passport client-credentials, or per-tenant API keys? Who issues and rotates them?
+2. **Price channel (BUN-241):** online prices as the product default, or a dedicated "online" outlet / price level in `ProductPriceProfile`?
+3. **Slugs (BUN-235):** add a `slug` column to categories and products, or derive slugs from `code`?
+4. **Images (BUN-238):** products have one photo (`image_path` on the `central_public` disk). Which host serves it in each environment, and can products have more than one photo? The storefront needs the host for image optimisation.
+5. **Category hierarchy and order (BUN-160 → BUN-236):** add `parent_id` and `sort_order` to `end_product_categories`, with a way to set them in the ERP?
+6. **Processing time (BUN-160 → BUN-237):** add a preparation-time field per product (or per SKU), in hours?
+7. **Online visibility (BUN-161 → BUN-239):** add a "Show on the website" switch (`visible_online`) to products, categories and SKUs? Today only `is_active` exists, so the storefront hides inactive items and treats everything active as visible. The list endpoints should keep sending hidden items (or at least hidden categories): the storefront needs hidden parents to hide their sub-categories. When it changes, the ERP should call the revalidate webhook for that product or category.
+8. **Orders (BUN-244):** a new `type` on `PosOrder`, or a separate online-order model? Which outlet fulfils them?
+9. **Webhook (BUN-246):** which ERP events trigger `POST /api/revalidate` (price change, product edit, banner change)?

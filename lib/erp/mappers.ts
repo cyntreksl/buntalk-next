@@ -8,6 +8,7 @@ import type {
   ErpScheme,
   ErpSku,
 } from "./schemas";
+import { isSkuVisible } from "./visibility";
 import type { Banner, Category, Customer, Order, Product, Scheme, Sku } from "./types";
 
 /** ERP wire types → storefront types. Pure functions, no I/O. */
@@ -64,7 +65,7 @@ export function toProduct(p: ErpProduct): Product {
     imageUrls: productImages(p),
     attributes: p.attributes.filter((a) => a.values.length > 0),
     processingTimeHours: orUndefined(p.processing_time_hours),
-    skus: p.skus.filter((s) => s.is_active).map(toSku),
+    skus: p.skus.filter(isSkuVisible).map(toSku),
   };
 }
 

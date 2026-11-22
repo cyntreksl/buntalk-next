@@ -15,13 +15,17 @@ type CartState = {
   addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   setQuantity: (sku: string, quantity: number) => void;
   removeItem: (sku: string) => void;
+  /** Replace the cart with the server-checked lines (see features/cart/api.ts). */
+  replaceItems: (items: CartItem[]) => void;
   clear: () => void;
 };
 
 /**
  * Client-side cart state, persisted to localStorage.
- * Prices here are for display only — totals are always re-validated
- * against the ERP at checkout.
+ * Items only get in through the server check (POST /api/cart/items), and the
+ * cart page re-checks them (POST /api/cart/validate), so products hidden in
+ * the ERP are refused or dropped. Prices here are for display only — totals
+ * are always re-validated against the ERP at checkout.
  */
 export const useCartStore = create<CartState>()(
   persist(
@@ -47,6 +51,7 @@ export const useCartStore = create<CartState>()(
               : state.items.map((i) => (i.sku === sku ? { ...i, quantity } : i)),
         })),
       removeItem: (sku) => set((state) => ({ items: state.items.filter((i) => i.sku !== sku) })),
+      replaceItems: (items) => set({ items }),
       clear: () => set({ items: [] }),
     }),
     { name: "buntalk-cart", storage: createJSONStorage(() => localStorage) },
