@@ -14,7 +14,17 @@ export type Category = {
   description: string;
   /** Absolute image URL from the ERP. Optional: a branded tile is shown without it. */
   imageUrl?: string;
+  /** Parent category's id; undefined for a top-level category. */
+  parentId?: string;
+  /** ERP display order (lower first). Lists keep this order; never re-sorted by name. */
+  sortOrder?: number;
 };
+
+/** A category with its sub-categories, for menus and sidebars. */
+export type CategoryNode = Category & { children: CategoryNode[] };
+
+/** A product option and all its values, e.g. { name: "Size", values: ["Small", "Large"] }. */
+export type ProductAttribute = { name: string; values: string[] };
 
 export type ProductOption = { type: string; value: string };
 
@@ -41,7 +51,13 @@ export type Product = {
   currency: string;
   categorySlug: string;
   featured: boolean;
+  /** ERP product code (shown as "Item code"). */
+  code?: string;
+  /** Photos, main one first. Empty or missing = show the placeholder image. */
   imageUrls?: string[];
+  attributes?: ProductAttribute[];
+  /** Hours the bakery needs to prepare it, if the ERP sets one. */
+  processingTimeHours?: number;
   skus?: Sku[];
 };
 

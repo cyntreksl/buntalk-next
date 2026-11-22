@@ -610,3 +610,65 @@ Each error has a customer-safe `userMessage`, plus `status`, `path` and `request
 - The product mapper
 
 `npm run check` includes the tests.
+
+## Catalog sync
+
+The ERP is the single source of truth for categories and products. The storefront never stores its own copy. It reads through the cached functions in `lib/erp/catalog.ts`.
+
+### Categories
+
+- **Hierarchy:** categories have a parent (`parentId`) and a display order (`sortOrder`), both from the ERP.
+- **Order:** they are shown **exactly in the ERP's order**, never alphabetically. Helpers are in `lib/categories.ts`.
+- **Where each level shows:**
+  - The header mega-menu, the mobile menu and the category sidebar show the tree, with sub-categories under their parent.
+  - The footer, the home page tiles and the "popular categories" suggestions show top-level categories only.
+- **Breadcrumbs** include the parent categories (Home › Cakes › Birthday cakes › product).
+- **Parent pages** list products from their sub-categories too.
+- **Missing parent:** a category whose parent is missing is shown at the top level rather than hidden.
+
+### Products
+
+These ERP fields map to storefront fields:
+
+| ERP field                      | Storefront field                                  |
+| ------------------------------ | ------------------------------------------------- |
+| name, description              | `name`, `description`                             |
+| `code`                         | `code`, shown as "Item code"                      |
+| `image_url` and `gallery_urls` | `imageUrls`                                       |
+| option types and values        | `attributes`, e.g. Size: 1 kg, 2 kg               |
+| category                       | `categorySlug`                                    |
+| `processing_time_hours`        | `processingTimeHours`, shown as "Ready in 2 days" |
+| SKUs and prices                | `skus`, `price`                                   |
+
+### Missing images
+
+A product with no image, an invalid image URL, or an image that fails to load shows a branded placeholder (the product's first letter) in the same square frame, so the page never breaks or jumps.
+
+### Updates from the ERP
+
+- **On a timer:** catalog pages refresh every 15 minutes.
+- **Straight away:** the ERP calls `POST /api/revalidate`:
+
+  | Change                                   | Body                           |
+  | ---------------------------------------- | ------------------------------ |
+  | A product is added or edited             | `{"type":"product","slug":…}`  |
+  | A category is added, edited or reordered | `{"type":"category","slug":…}` |
+  | Everything                               | `{"type":"all"}`               |
+
+### Mock ERP
+
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image and a broken image.
+
+To run the storefront against it, add this to `.env.local`:
+
+```
+ERP_API_BASE_URL=http://127.0.0.1:4010/api
+ERP_API_KEY=mock-key
+ERP_TENANT=buntalk
+```
+
+`POST /__mock/products` or `/__mock/categories` with a JSON body changes data. That's how revalidation was tested:
+
+- An edited product showed its new name and price after the webhook.
+- A new product appeared in its category.
+- Reordering categories in the "ERP" changed the order on the site.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
 import { ChevronDownIcon, useDismiss } from "@/components/ui";
-import type { Category } from "@/lib/erp";
+import type { CategoryNode } from "@/lib/erp";
 import { cx } from "@/lib/utils";
 
 /** How many categories to show as direct links in the bar; the rest are in "All categories". */
@@ -13,12 +13,14 @@ const INLINE_LIMIT = 6;
 /**
  * Desktop category navigation (lg+): an "All categories" button that opens a
  * full-width panel of every category, followed by direct links to the first
- * few categories. Categories come from the ERP (passed in by SiteHeader).
+ * few top-level categories. Categories come from the ERP (passed in by
+ * SiteHeader as a tree, in ERP order); the panel lists sub-categories under
+ * their parent.
  *
  * The panel is a disclosure (button with aria-expanded): Tab moves through
  * its links; Esc, clicking outside or tabbing away closes it.
  */
-export function MegaMenu({ categories }: { categories: Category[] }) {
+export function MegaMenu({ categories }: { categories: CategoryNode[] }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,17 +83,33 @@ export function MegaMenu({ categories }: { categories: Category[] }) {
       >
         <div className="max-w-page mx-auto grid gap-x-8 gap-y-2 px-6 py-6 lg:grid-cols-3 xl:grid-cols-4">
           {categories.map((category) => (
-            <Link
-              key={category.slug}
-              href={`/category/${category.slug}`}
-              prefetch={true}
-              className="hover:bg-surface-muted group flex flex-col rounded-md p-3"
-            >
-              <span className="group-hover:text-primary font-bold">{category.name}</span>
-              <span className="text-body-sm text-muted-foreground line-clamp-2">
-                {category.description}
-              </span>
-            </Link>
+            <div key={category.slug} className="flex flex-col">
+              <Link
+                href={`/category/${category.slug}`}
+                prefetch={true}
+                className="hover:bg-surface-muted group flex flex-col rounded-md p-3"
+              >
+                <span className="group-hover:text-primary font-bold">{category.name}</span>
+                <span className="text-body-sm text-muted-foreground line-clamp-2">
+                  {category.description}
+                </span>
+              </Link>
+              {category.children.length > 0 && (
+                <ul className="mb-2 flex flex-col pl-3">
+                  {category.children.map((child) => (
+                    <li key={child.slug}>
+                      <Link
+                        href={`/category/${child.slug}`}
+                        prefetch={true}
+                        className="text-body-sm text-foreground hover:text-primary block rounded-sm px-3 py-1.5"
+                      >
+                        {child.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           ))}
         </div>
       </div>

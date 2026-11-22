@@ -1,5 +1,6 @@
 import { NewsletterSignup } from "@/components/layout/footer/NewsletterSignup";
 import { FullWidthSection, FullWidthTemplate } from "@/components/layout/templates";
+import { topLevelCategories } from "@/lib/categories";
 import { ProductGrid } from "@/features/catalog";
 import { CakeStudioCta } from "@/features/home/CakeStudioCta";
 import { FeaturedCategories } from "@/features/home/FeaturedCategories";
@@ -33,7 +34,7 @@ export default async function HomePage() {
 
       {categories.length > 0 && (
         <FullWidthSection aria-labelledby="categories">
-          <FeaturedCategories categories={categories} />
+          <FeaturedCategories categories={topLevelCategories(categories)} />
         </FullWidthSection>
       )}
 

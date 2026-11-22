@@ -9,8 +9,8 @@ import {
   ErpValidationError,
 } from "./errors";
 import { erpGet, erpRequest, transport } from "./http";
-import { toProduct } from "./mappers";
-import { erpProductSchema, listOf } from "./schemas";
+import { toCategory, toProduct } from "./mappers";
+import { erpCategorySchema, erpProductSchema, listOf } from "./schemas";
 
 const config = {
   baseUrl: "https://erp.test/api",
@@ -260,5 +260,71 @@ describe("product schema and mapper", () => {
       }),
     );
     expect(product.compareAtPrice).toBeUndefined();
+  });
+});
+
+describe("catalog sync mapping (BUN-160)", () => {
+  const base = {
+    link_id: "p1",
+    code: "CK-01",
+    slug: "chocolate-cake",
+    name: "Chocolate cake",
+    description: "Rich and moist.",
+    category: { link_id: "c2", slug: "birthday", name: "Birthday" },
+    is_active: true,
+    price: { currency: "LKR", selling_price: "3500.00", printed_price: null },
+  };
+
+  it("maps image, gallery, attributes and processing time", () => {
+    const product = toProduct(
+      erpProductSchema.parse({
+        ...base,
+        image_url: "https://cdn.erp.test/p1.jpg",
+        gallery_urls: ["https://cdn.erp.test/p1-b.jpg", "https://cdn.erp.test/p1.jpg"],
+        attributes: [
+          { name: "Size", values: ["1 kg", "2 kg"] },
+          { name: "Empty", values: [] },
+        ],
+        processing_time_hours: 24,
+      }),
+    );
+    expect(product.code).toBe("CK-01");
+    // Main image first, duplicates removed.
+    expect(product.imageUrls).toEqual([
+      "https://cdn.erp.test/p1.jpg",
+      "https://cdn.erp.test/p1-b.jpg",
+    ]);
+    // Options without values are dropped.
+    expect(product.attributes).toEqual([{ name: "Size", values: ["1 kg", "2 kg"] }]);
+    expect(product.processingTimeHours).toBe(24);
+  });
+
+  it("treats a missing or broken image URL as no image instead of failing the product", () => {
+    const noImage = toProduct(erpProductSchema.parse({ ...base, image_url: null }));
+    expect(noImage.imageUrls).toEqual([]);
+
+    const broken = toProduct(
+      erpProductSchema.parse({
+        ...base,
+        image_url: "not a url",
+        gallery_urls: ["/storage/relative.jpg", "javascript:alert(1)"],
+      }),
+    );
+    expect(broken.imageUrls).toEqual([]);
+    expect(broken.processingTimeHours).toBeUndefined();
+  });
+
+  it("maps category parent and sort order", () => {
+    const category = toCategory(
+      erpCategorySchema.parse({
+        link_id: "c2",
+        slug: "birthday",
+        name: "Birthday",
+        parent_link_id: "c1",
+        sort_order: 4,
+        is_active: true,
+      }),
+    );
+    expect(category).toMatchObject({ id: "c2", parentId: "c1", sortOrder: 4, description: "" });
   });
 });

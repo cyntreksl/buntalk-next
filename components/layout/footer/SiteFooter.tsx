@@ -3,6 +3,7 @@ import { Logo } from "@/components/brand/Logo";
 import { brand } from "@/lib/brand";
 import { contentPages, policyPageIds } from "@/lib/content-pages";
 import { getCopyrightYears } from "@/lib/copyright";
+import { topLevelCategories } from "@/lib/categories";
 import { getNavigationCategories } from "@/lib/erp";
 import { siteConfig } from "@/lib/site-config";
 import { FooterContact } from "./FooterContact";
@@ -33,7 +34,10 @@ export async function SiteFooter() {
       id: "shop",
       title: "Shop",
       links: [
-        ...categories.map((c) => ({ label: c.name, href: `/category/${c.slug}` })),
+        ...topLevelCategories(categories).map((c) => ({
+          label: c.name,
+          href: `/category/${c.slug}`,
+        })),
         { label: "Search products", href: "/search" },
       ],
     },

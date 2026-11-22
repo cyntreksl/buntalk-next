@@ -31,6 +31,12 @@ export const erpPriceSchema = z.object({
   tax_mode: z.string().nullable().optional(),
 });
 
+/**
+ * Image URL. A missing or malformed URL becomes null instead of failing the
+ * whole response, so the page shows a placeholder image (BUN-160).
+ */
+const imageUrl = z.url().nullable().optional().catch(null);
+
 export const erpCategorySchema = z.object({
   link_id: uuid,
   /** NEW: URL slug, unique per tenant. */
@@ -39,7 +45,11 @@ export const erpCategorySchema = z.object({
   /** NEW */
   description: z.string().nullable().optional(),
   /** NEW: absolute image URL. */
-  image_url: z.url().nullable().optional(),
+  image_url: imageUrl,
+  /** NEW: parent category's link_id; null for a top-level category. */
+  parent_link_id: uuid.nullable().optional(),
+  /** NEW: display order set in the ERP (lower first). The storefront never re-sorts. */
+  sort_order: z.number().int().optional(),
   is_active: z.boolean(),
 });
 
@@ -69,8 +79,17 @@ export const erpProductSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   category: erpCategorySchema.pick({ link_id: true, slug: true, name: true }),
-  /** NEW: absolute image URLs, first is the main image. */
-  image_urls: z.array(z.url()).default([]),
+  /** Product photo (EndProduct::imageUrl(), as in the staff API's EndProductResource). */
+  image_url: imageUrl,
+  /** NEW: extra photos, after the main one. */
+  gallery_urls: z.array(z.string()).default([]),
+  /**
+   * The product's options with all their values (EndProduct option types /
+   * values), e.g. [{ name: "Size", values: ["Small", "Large"] }].
+   */
+  attributes: z.array(z.object({ name: z.string(), values: z.array(z.string()) })).default([]),
+  /** NEW: how long the bakery needs to prepare it, in hours (shown as "Ready in …"). */
+  processing_time_hours: z.number().nonnegative().nullable().optional(),
   is_active: z.boolean(),
   is_customisable: z.boolean().default(false),
   allows_fractional: z.boolean().default(false),
@@ -88,7 +107,7 @@ export const erpBannerSchema = z.object({
   subtitle: z.string().nullable().optional(),
   cta_label: z.string(),
   href: z.string().min(1),
-  image_url: z.url().nullable().optional(),
+  image_url: imageUrl,
   image_alt: z.string().nullable().optional(),
 });
 
