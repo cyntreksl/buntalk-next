@@ -17,3 +17,11 @@ export {
   type SubmitResult,
 } from "./submit";
 export { sendOrderAlert } from "./alerts";
+export {
+  POLL_INTERVAL_MS,
+  applyStatus,
+  findOrderForErp,
+  isErpOrderStatus,
+  pollOrderStatuses,
+  refreshStatusIfStale,
+} from "./sync";

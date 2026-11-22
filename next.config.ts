@@ -6,7 +6,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /** Paths that show per-user data. Browsers, proxies and CDNs must never store them. */
-const PRIVATE_PATHS = ["/cart", "/checkout", "/account"];
+const PRIVATE_PATHS = ["/cart", "/checkout", "/account", "/orders"];
 
 const nextConfig: NextConfig = {
   cacheComponents: true,

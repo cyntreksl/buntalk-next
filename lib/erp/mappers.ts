@@ -116,6 +116,7 @@ export function toOrder(o: ErpOrder): Order {
     number: o.number,
     status: o.status,
     placedAt: o.placed_at,
+    statusChangedAt: orUndefined(o.status_changed_at),
     currency: o.currency,
     customerId: orUndefined(o.customer_link_id),
     lines: o.lines.map((l) => ({

@@ -538,7 +538,7 @@ The ERP is the system of record for orders. The storefront also keeps its own co
   - `orders`: the order snapshot (lines, prices, offers, customer, delivery, payment), the ERP status and ids, and the retry state.
   - `order_events`: the audit trail (placed, submitted, failed with the error, rejected, requeued).
 - **Production and staging:** set `DATABASE_URL`, then run `npm run db:migrate` as a deploy step.
-- **Local development:** leave `DATABASE_URL` empty. An embedded **PGlite** database (real Postgres in WebAssembly) is created in `.data/pglite` and migrated automatically, so nothing needs installing.
+- **Local development:** leave `DATABASE_URL` empty. An embedded **PGlite** database (real Postgres in WebAssembly) is created in `node_modules/.cache/buntalk/pglite` and migrated automatically, so nothing needs installing. It lives outside the dev server's file watcher (a watched folder would rebuild the app on every database write) and is wiped with `node_modules`.
 - **Schema changes:** edit `lib/db/schema.ts`, then run `npm run db:generate` and commit the new migration.
 
 ### Placing an order: `POST /api/orders`
@@ -578,6 +578,23 @@ The checkout page (BUN-201) sends the cart lines, customer, delivery or pickup d
   - Every alert is written to the server log as `[orders:alert] {…}`.
   - When `ALERT_WEBHOOK_URL` is set (a Slack or Teams incoming webhook), the alert is also posted there.
   - An alert is sent for: a rejected order, bad ERP credentials, 3 failed attempts in a row, and giving up.
+
+### Order status (BUN-165)
+
+Each order's fulfilment status is kept in step with the ERP (`lib/orders/sync.ts`). There are three ways in, and an older or repeated update never overwrites a newer status:
+
+| Way               | Delay             | How                                                                                                                |
+| ----------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| ERP webhook       | Seconds           | `POST /api/webhooks/erp/order-status`, signed with HMAC-SHA256 (`ERP_WEBHOOK_SECRET`, `lib/orders/webhook.ts`)     |
+| Polling           | At most 5 minutes | The every-minute retry cron (`POST /api/orders/retry`) also reads open orders not checked for 5 minutes            |
+| Viewing the order | Up to 1 minute    | The order page re-checks with the ERP when the status is over a minute old, then refreshes itself every 30 seconds |
+
+- **Customer words** (`lib/orders/status.ts`): Order received, Order confirmed, Being prepared, Ready for delivery / Ready to collect, Out for delivery, Delivered / Collected, Cancelled. A timeline shows the steps, and pickup has no "Out for delivery" step.
+- **Order page:** `/orders/{number}?token={token}` is private and works without signing in.
+  - The link comes back as `trackingUrl` when the order is placed, for the confirmation page and messages (BUN-202).
+  - A wrong token gives a 404.
+  - The account order pages (BUN-194) reuse `OrderStatusCard`.
+- **ERP side:** the ERP doesn't have this workflow or the webhook yet (BUN-253). Until it does, the mock ERP's `POST /__mock/orders/status` changes a status and sends the signed webhook. Set `MOCK_STOREFRONT_WEBHOOK_URL` and `MOCK_ERP_WEBHOOK_SECRET` for it.
 
 ### Not built yet
 

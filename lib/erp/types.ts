@@ -138,6 +138,8 @@ export type Order = {
   number: string;
   status: OrderStatus;
   placedAt: string;
+  /** When the status last changed (ISO), if the ERP sends it. */
+  statusChangedAt?: string;
   currency: string;
   customerId?: string;
   lines: OrderLine[];

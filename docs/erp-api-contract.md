@@ -230,6 +230,31 @@ For pickup, `fulfilment` is `{ "type": "pickup", "outlet_link_id": "…", "date"
 
 Delivery fees, areas and slots don't exist in the ERP yet (BUN-251), so the storefront sends `delivery_fee: "0.00"`. Cake Studio cakes as order lines need BUN-252.
 
+### Order status (BUN-165; ERP side: BUN-253)
+
+Statuses: `pending` → `confirmed` → `preparing` → `ready` → `dispatched` (delivery only) → `completed`, or `cancelled`. The order resource includes `status_changed_at`.
+
+**Webhook (preferred, instant).** On every status change, the ERP calls:
+
+```
+POST {STOREFRONT_URL}/api/webhooks/erp/order-status
+X-Erp-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" with the shared ERP_WEBHOOK_SECRET>
+
+{ "event": "order.status_changed",
+  "data": { "link_id": "…", "number": "WEB-1001", "storefront_order_number": "BT-261122-7K3QX",
+            "status": "preparing", "changed_at": "2026-11-22T10:15:00Z" } }
+```
+
+| Storefront answer | Meaning                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| 200 `{ applied }` | Accepted. `applied: false` means an older or repeated update, which is ignored        |
+| 202               | Not a storefront order (for example a POS order); nothing to do                       |
+| 401               | Bad signature, or a timestamp more than 5 minutes off. Check the secret and the clock |
+
+Deliveries may be retried or arrive out of order: the storefront keeps the newest `changed_at`.
+
+**Polling (fallback).** The storefront also reads `GET /orders/{link_id}` for open orders every 5 minutes, and when a customer views an order whose status is over a minute old.
+
 ### Customer (`PosCustomer`)
 
 `link_id`, `code`, `name`, `phone`, `email`, `is_active`.
@@ -270,6 +295,7 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-250 | Ingredients, allergens and dietary tags per product      | BUN-249                   |
 | BUN-251 | Delivery areas, delivery fees and time slots             | BUN-164, BUN-199          |
 | BUN-252 | Cake Studio cakes as lines of an online order            | BUN-164, BUN-184          |
+| BUN-253 | Online order fulfilment workflow and status webhooks     | BUN-165, BUN-194          |
 
 ## 6. Open questions for the ERP team
 

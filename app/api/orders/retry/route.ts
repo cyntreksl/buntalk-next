@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { requeueOrder, retryDueSubmissions } from "@/lib/orders";
+import { pollOrderStatuses, requeueOrder, retryDueSubmissions } from "@/lib/orders";
 import { checkOpsAuth } from "@/lib/orders/ops-auth";
 
 /**
@@ -12,7 +12,10 @@ import { checkOpsAuth } from "@/lib/orders/ops-auth";
  *   {}                        send every order whose retry is due (run this every minute)
  *   { "number": "BT-…" }      put one failed/rejected order back in the queue and send it now
  *
- *   200 { summary: { submitted, failed, rejected, skipped } }
+ *   200 { summary: { submitted, failed, rejected, skipped }, statuses: { checked, changed, errors } }
+ *
+ * Each run also polls the ERP for the status of open orders not checked in
+ * the last 5 minutes (fallback for missed status webhooks, BUN-165).
  *
  * Schedule it with any cron (hosting cron, GitHub Actions, a system cron):
  *   curl -X POST -H "Authorization: Bearer $ORDERS_OPS_SECRET" https://<site>/api/orders/retry
@@ -37,5 +40,6 @@ export async function POST(request: Request) {
     }
   }
   const summary = await retryDueSubmissions(db);
-  return Response.json({ summary }, { headers: { "Cache-Control": "no-store" } });
+  const statuses = await pollOrderStatuses(db);
+  return Response.json({ summary, statuses }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -26,10 +26,14 @@ const serverSchema = z.object({
   REVALIDATE_SECRET: optional(z.string().min(16)),
   // Storefront database (orders, ERP submission queue): postgres://user:pass@host:5432/db
   DATABASE_URL: optional(z.string().regex(/^postgres(ql)?:\/\//, "a postgres:// URL")),
-  // Local only, without DATABASE_URL: folder for the embedded PGlite database (default .data/pglite)
+  // Local only, without DATABASE_URL: folder for the embedded PGlite database.
+  // Default node_modules/.cache/buntalk/pglite: outside the dev server's file
+  // watcher (a watched folder would trigger a rebuild on every database write).
   PGLITE_DIR: optional(z.string()),
   // Secret for the order operations endpoints (retry queue, failed orders), at least 16 characters
   ORDERS_OPS_SECRET: optional(z.string().min(16)),
+  // Shared secret for signed ERP webhooks (order status), at least 16 characters
+  ERP_WEBHOOK_SECRET: optional(z.string().min(16)),
   // Optional: Slack/Teams-compatible incoming webhook for order alerts ({ "text": … })
   ALERT_WEBHOOK_URL: optional(z.url()),
 });
@@ -93,5 +97,5 @@ export function databaseConfig(): DatabaseConfig {
   if (publicEnv.NEXT_PUBLIC_APP_ENV !== "local") {
     throw new Error("DATABASE_URL is required outside local development (see .env.example).");
   }
-  return { kind: "pglite", dir: PGLITE_DIR ?? ".data/pglite" };
+  return { kind: "pglite", dir: PGLITE_DIR ?? "node_modules/.cache/buntalk/pglite" };
 }
