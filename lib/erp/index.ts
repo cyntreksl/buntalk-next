@@ -12,6 +12,7 @@ import "server-only";
 
 // Catalog reads (cached)
 export {
+  getActiveSchemes,
   getCategories,
   getCategory,
   getFeaturedProducts,
@@ -24,6 +25,9 @@ export {
   searchProducts,
 } from "./catalog";
 
+// Live basket pricing by the ERP scheme engine (never cached)
+export { quoteCart, type Quote, type QuoteLineInput } from "./quote";
+
 // Storefront types
 export type {
   Banner,
@@ -35,6 +39,7 @@ export type {
   OrderStatus,
   Product,
   ProductAttribute,
+  ProductOffer,
   ProductOption,
   Scheme,
   Sku,

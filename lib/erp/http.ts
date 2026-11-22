@@ -41,6 +41,11 @@ export type ErpRequest<S extends z.ZodType> = {
   idempotencyKey?: string;
   /** Override the retry count (GET default 2, writes always 0). */
   retries?: number;
+  /**
+   * A POST that changes nothing (e.g. a price quote): retried like a GET.
+   * Never set this on a request that creates or changes data.
+   */
+  readOnly?: boolean;
 };
 
 const DEFAULT_RETRIES = 2;
@@ -188,7 +193,7 @@ export async function erpRequest<S extends z.ZodType>(req: ErpRequest<S>): Promi
     );
   }
   const method = req.method ?? "GET";
-  const maxRetries = method === "GET" ? (req.retries ?? DEFAULT_RETRIES) : 0;
+  const maxRetries = method === "GET" || req.readOnly ? (req.retries ?? DEFAULT_RETRIES) : 0;
   const requestId = crypto.randomUUID();
 
   for (let attempt = 1; ; attempt++) {

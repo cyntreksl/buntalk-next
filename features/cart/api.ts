@@ -7,7 +7,14 @@ import type { CartItem } from "./store";
 
 type CartLine = Pick<CartItem, "productSlug" | "skuId" | "quantity">;
 
-export type PricedLine = CartItem & { lineTotal: number };
+export type PricedLine = CartItem & {
+  /** quantity × unit price, before offers (calculated on the server). */
+  lineSubtotal: number;
+  /** Scheme discount on this line (from the ERP). */
+  discount: number;
+  lineTotal: number;
+  schemes: { id: string; name: string }[];
+};
 
 type AddResult =
   | { ok: true; item: PricedLine }
@@ -40,11 +47,18 @@ export async function checkItem(line: CartLine): Promise<AddResult> {
   }
 }
 
+export type AppliedScheme = { id: string; name: string; description?: string; discount: number };
+export type FreeItem = { name: string; variant?: string; quantity: number; schemeName: string };
+
 export type ServerCart = {
   items: PricedLine[];
   removed: { key: string; reason: "not_available" | "sold_out" | "choose_variant" }[];
+  appliedSchemes: AppliedScheme[];
+  freeItems: FreeItem[];
   currency: string;
   subtotal: number;
+  discountTotal: number;
+  total: number;
 };
 
 /** Returns null if the check couldn't run (offline, ERP down). */

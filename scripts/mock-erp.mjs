@@ -24,6 +24,8 @@
  * Hide a product:  POST /__mock/products {"slug":"fish-bun","visible_online":false}
  * Change a price:  POST /__mock/products {"slug":"fish-bun","price":{"currency":"LKR","selling_price":"130.00","printed_price":null,"compare_at_price":null,"tax_mode":"inclusive"}}
  * Customer prices: GET …/products/fish-bun?customer=cust-wholesale (see PRICE_LEVELS).
+ * Schemes (BUN-163): GET …/schemes, POST …/prices/quote (a small scheme engine).
+ *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -189,7 +191,199 @@ function seed() {
     skus: [],
     ...p,
   }));
-  return { categories, products, banners: [] };
+  const day = 24 * 60 * 60 * 1000;
+  const at = (offsetDays) => new Date(Date.now() + offsetDays * day).toISOString();
+  const scheme = (x) => ({
+    description: null,
+    reward_value: null,
+    buy_quantity: null,
+    get_quantity: null,
+    free_sku_id: null,
+    min_spend: null,
+    starts_at: null,
+    ends_at: null,
+    product_ids: [],
+    category_ids: [],
+    audience: "everyone",
+    is_active: true,
+    ...x,
+  });
+  // BUN-163 test schemes. Like the real ERP, the list includes ones that must
+  // never be shown or applied (inactive, ended, not started, customer-only).
+  const schemes = [
+    scheme({
+      link_id: "s-bun-multibuy",
+      name: "Bun bonanza",
+      description: "Buy 2 fish buns, get 1 free",
+      kind: "buy_x_get_y",
+      buy_quantity: 2,
+      get_quantity: 1,
+      product_ids: ["p-fish-bun"],
+      ends_at: at(7),
+    }),
+    scheme({
+      link_id: "s-cake-week",
+      name: "Cake week",
+      description: "10% off all cakes",
+      kind: "percent",
+      reward_value: "10.00",
+      category_ids: ["c-cakes"],
+      starts_at: at(-1),
+      ends_at: at(6),
+    }),
+    scheme({
+      link_id: "s-big-order",
+      name: "Big order saver",
+      description: "LKR 500 off orders over LKR 10,000",
+      kind: "amount",
+      reward_value: "500.00",
+      min_spend: "10000.00",
+    }),
+    scheme({
+      link_id: "s-expired",
+      name: "Expired bun sale",
+      kind: "percent",
+      reward_value: "50.00",
+      category_ids: ["c-buns"],
+      starts_at: at(-10),
+      ends_at: at(-1),
+    }),
+    scheme({
+      link_id: "s-inactive",
+      name: "Inactive everything sale",
+      kind: "percent",
+      reward_value: "30.00",
+      is_active: false,
+    }),
+    scheme({
+      link_id: "s-future",
+      name: "Short eats weekend",
+      kind: "percent",
+      reward_value: "20.00",
+      category_ids: ["c-short-eats"],
+      starts_at: at(2),
+      ends_at: at(4),
+    }),
+    scheme({
+      link_id: "s-wholesale-only",
+      name: "Wholesale group discount",
+      kind: "percent",
+      reward_value: "15.00",
+      category_ids: ["c-buns"],
+      audience: "customer_groups",
+    }),
+  ];
+  return { categories, products, banners: [], schemes };
+}
+
+/** A scheme the engine may apply now (active, inside its dates, for this customer). */
+function liveScheme(s, customer) {
+  const now = Date.now();
+  if (!s.is_active) return false;
+  if (s.starts_at && Date.parse(s.starts_at) > now) return false;
+  if (s.ends_at && Date.parse(s.ends_at) <= now) return false;
+  if (s.audience === "customer_groups" && !PRICE_LEVELS[customer]) return false;
+  return true;
+}
+
+function categoryWithParents(linkId) {
+  const ids = [];
+  let current = state.categories.find((c) => c.link_id === linkId);
+  while (current && !ids.includes(current.link_id)) {
+    ids.push(current.link_id);
+    const parentId = current.parent_link_id;
+    current = state.categories.find((c) => c.link_id === parentId);
+  }
+  return ids;
+}
+
+const cents = (n) => Math.round(n * 100);
+const money = (c) => (c / 100).toFixed(2);
+
+/**
+ * Tiny stand-in for the ERP scheme engine: POST /prices/quote. Each line gets
+ * the best line-level scheme; then order-level schemes apply to what is left.
+ */
+function quote(body) {
+  const customer = body?.customer_link_id ?? null;
+  const schemes = state.schemes.filter((s) => liveScheme(s, customer));
+  const applied = new Map();
+  const add = (s, c) => {
+    const a = applied.get(s.link_id) ?? {
+      scheme_id: s.link_id,
+      name: s.name,
+      description: s.description,
+      discount: 0,
+    };
+    a.discount += c;
+    applied.set(s.link_id, a);
+  };
+
+  const lines = [];
+  for (const l of body?.lines ?? []) {
+    const p0 = state.products.find((p) => p.link_id === l.product_link_id);
+    if (!p0) return { error: 422, message: "A product in your cart is no longer available." };
+    const p = forCustomer(p0, customer);
+    const sku = l.sku_link_id ? p.skus.find((x) => x.link_id === l.sku_link_id) : null;
+    const unit = cents(Number((sku ?? p).price.selling_price));
+    const qty = l.quantity;
+    const gross = unit * qty;
+    const cats = categoryWithParents(p.category.link_id);
+    const lineSchemes = schemes.filter(
+      (x) => x.product_ids.includes(p.link_id) || x.category_ids.some((id) => cats.includes(id)),
+    );
+    let best = null;
+    for (const x of lineSchemes) {
+      let d = 0;
+      if (x.kind === "percent") d = Math.round((gross * Number(x.reward_value)) / 100);
+      if (x.kind === "fixed_price") d = Math.max(0, gross - cents(Number(x.reward_value)) * qty);
+      if (x.kind === "buy_x_get_y")
+        d = Math.floor(qty / (x.buy_quantity + x.get_quantity)) * x.get_quantity * unit;
+      if (d > 0 && (!best || d > best.d)) best = { s: x, d };
+    }
+    if (best) add(best.s, best.d);
+    const d = best?.d ?? 0;
+    lines.push({
+      product_link_id: p.link_id,
+      sku_link_id: sku?.link_id ?? null,
+      quantity: qty,
+      unit_price: money(unit),
+      discount: money(d),
+      line_total: money(gross - d),
+      scheme_ids: best ? [best.s.link_id] : [],
+      gross,
+      net: gross - d,
+    });
+  }
+
+  const subtotal = lines.reduce((t, l) => t + l.gross, 0);
+  let net = lines.reduce((t, l) => t + l.net, 0);
+  const freeItems = [];
+  const orderSchemes = schemes.filter(
+    (x) => x.product_ids.length === 0 && x.category_ids.length === 0,
+  );
+  for (const x of orderSchemes) {
+    if (x.min_spend && net < cents(Number(x.min_spend))) continue;
+    let d = 0;
+    if (x.kind === "amount") d = Math.min(net, cents(Number(x.reward_value)));
+    if (x.kind === "percent") d = Math.round((net * Number(x.reward_value)) / 100);
+    if (d > 0) {
+      add(x, d);
+      net -= d;
+    }
+  }
+
+  return {
+    data: {
+      currency: "LKR",
+      lines: lines.map((l) => ({ ...l, gross: undefined, net: undefined })),
+      applied_schemes: [...applied.values()].map((a) => ({ ...a, discount: money(a.discount) })),
+      free_items: freeItems,
+      subtotal: money(subtotal),
+      discount_total: money(subtotal - net),
+      total: money(net),
+    },
+  };
 }
 
 let state = seed();
@@ -252,15 +446,18 @@ const server = createServer(async (req, res) => {
     if (path === "/__mock/state") return send(res, 200, state);
     if (path === "/__mock/reset") return ((state = seed()), send(res, 200, { ok: true }));
     const body = await readBody(req);
-    if (!body?.slug) return send(res, 422, { message: "slug is required" });
+    const idField = path === "/__mock/schemes" ? "link_id" : "slug";
+    if (!body?.[idField]) return send(res, 422, { message: idField + " is required" });
     const list =
       path === "/__mock/products"
         ? state.products
         : path === "/__mock/categories"
           ? state.categories
-          : null;
+          : path === "/__mock/schemes"
+            ? state.schemes
+            : null;
     if (!list) return send(res, 404, { message: "Not Found" });
-    const i = list.findIndex((x) => x.slug === body.slug);
+    const i = list.findIndex((x) => x[idField] === body[idField]);
     if (i >= 0) list[i] = { ...list[i], ...body };
     else list.push(body);
     return send(res, 200, { ok: true, item: list[i >= 0 ? i : list.length - 1] });
@@ -302,6 +499,13 @@ const server = createServer(async (req, res) => {
     return send(res, 200, { data: q.get("customer") ? forCustomer(p, q.get("customer")) : p });
   }
   if (route === "/banners") return send(res, 200, { data: state.banners });
+  if (route === "/schemes") return send(res, 200, { data: state.schemes });
+  if (route === "/prices/quote" && req.method === "POST") {
+    const result = quote(await readBody(req));
+    return result.error
+      ? send(res, result.error, { message: result.message })
+      : send(res, 200, result);
+  }
   return send(res, 404, { message: "Not Found" });
 });
 

@@ -1,6 +1,13 @@
 import "server-only";
 import { z } from "zod";
-import { ErpError, getProductsForCart, type Product } from "@/lib/erp";
+import {
+  ErpError,
+  ErpResponseError,
+  getProductsForCart,
+  quoteCart,
+  type Product,
+  type Quote,
+} from "@/lib/erp";
 import { lineTotal, sumMoney, variantLabel } from "@/lib/pricing";
 
 /**
@@ -11,7 +18,9 @@ import { lineTotal, sumMoney, variantLabel } from "@/lib/pricing";
  *   deleted products, and sizes that are hidden or sold out, are refused.
  * - Names and unit prices always come from the ERP, never from the browser.
  *   With a signed-in customer, the ERP returns that customer's own prices.
- * - Line totals and the subtotal are calculated here, in cents.
+ * - Discounts come from the ERP scheme engine (quoteCart): which scheme gave
+ *   which discount, free items, and the totals. The storefront never applies
+ *   a scheme itself, so the cart matches what the ERP charges for the order.
  *
  * Used by POST /api/cart/items and POST /api/cart/validate. Order submission
  * (BUN-164 / BUN-201) must call priceCart() again right before sending the
@@ -43,7 +52,14 @@ export type PricedCartLine = {
   variant?: string;
   unitPrice: number;
   quantity: number;
+  /** quantity × unitPrice, before offers. */
+  lineSubtotal: number;
+  /** Discount on this line from schemes (0 if none). */
+  discount: number;
+  /** lineSubtotal − discount. */
   lineTotal: number;
+  /** Schemes that gave this line's discount. */
+  schemes: { id: string; name: string }[];
 };
 
 export type RemovedReason = "not_available" | "sold_out" | "choose_variant";
@@ -53,9 +69,16 @@ export type PricedCart = {
   items: PricedCartLine[];
   /** Lines that can't be ordered, and why. */
   removed: { key: string; reason: RemovedReason }[];
+  /** Every scheme the ERP applied, and how much it saved. */
+  appliedSchemes: { id: string; name: string; description?: string; discount: number }[];
+  /** Free items given by schemes. */
+  freeItems: { name: string; variant?: string; quantity: number; schemeName: string }[];
   currency: string;
-  /** Sum of the line totals. Offers and delivery are added by BUN-177 / checkout. */
+  /** Before discounts. */
   subtotal: number;
+  discountTotal: number;
+  /** What the customer pays for the items. Delivery is added at checkout. */
+  total: number;
 };
 
 export const lineKey = (productSlug: string, skuId?: string) =>
@@ -84,32 +107,101 @@ function priceLine(
     variant: sku && sku.options.length > 0 ? variantLabel(sku.options) : undefined,
     unitPrice,
     quantity: line.quantity,
+    lineSubtotal: lineTotal(unitPrice, line.quantity),
+    discount: 0,
     lineTotal: lineTotal(unitPrice, line.quantity),
+    schemes: [],
   };
+}
+
+/** Applies the ERP quote (scheme engine) to the checked lines. */
+function applyQuote(cart: PricedCart, lines: PricedCartLine[], products: Product[], quote: Quote) {
+  if (quote.lines.length !== lines.length) {
+    throw new ErpResponseError("quote lines don't match the request", "/prices/quote", 200);
+  }
+  const names = new Map(quote.appliedSchemes.map((s) => [s.schemeId, s.name]));
+  cart.items = lines.map((line, i) => {
+    const q = quote.lines[i];
+    if (q.productId !== products[i].id) {
+      throw new ErpResponseError("quote lines are out of order", "/prices/quote", 200);
+    }
+    return {
+      ...line,
+      unitPrice: q.unitPrice,
+      lineSubtotal: lineTotal(q.unitPrice, q.quantity),
+      discount: q.discount,
+      lineTotal: q.lineTotal,
+      schemes: q.schemeIds.map((id) => ({ id, name: names.get(id) ?? "Offer" })),
+    };
+  });
+  cart.appliedSchemes = quote.appliedSchemes.map((s) => ({
+    id: s.schemeId,
+    name: s.name,
+    description: s.description,
+    discount: s.discount,
+  }));
+  cart.freeItems = quote.freeItems.map((f) => ({
+    name: f.name,
+    variant: f.variant,
+    quantity: f.quantity,
+    schemeName: names.get(f.schemeId) ?? "Offer",
+  }));
+  cart.currency = quote.currency;
+  cart.subtotal = quote.subtotal;
+  cart.discountTotal = quote.discountTotal;
+  cart.total = quote.total;
 }
 
 export async function priceCart(
   lines: CartLineInput[],
   options: { customerId?: string | null } = {},
 ): Promise<PricedCart> {
+  const customerId = options.customerId ?? undefined;
   const products = await getProductsForCart(
     lines.map((l) => l.productSlug),
-    { customerId: options.customerId ?? undefined },
+    { customerId },
   );
 
-  const result: PricedCart = { items: [], removed: [], currency: "LKR", subtotal: 0 };
+  const cart: PricedCart = {
+    items: [],
+    removed: [],
+    appliedSchemes: [],
+    freeItems: [],
+    currency: "LKR",
+    subtotal: 0,
+    discountTotal: 0,
+    total: 0,
+  };
+  const ok: { line: PricedCartLine; product: Product }[] = [];
   for (const line of lines) {
     const product = products.get(line.productSlug);
     const priced = priceLine(line, product);
     if (typeof priced === "string") {
-      result.removed.push({ key: lineKey(line.productSlug, line.skuId), reason: priced });
-    } else {
-      result.items.push(priced);
-      if (product) result.currency = product.currency;
+      cart.removed.push({ key: lineKey(line.productSlug, line.skuId), reason: priced });
+    } else if (product) {
+      ok.push({ line: priced, product });
+      cart.currency = product.currency;
     }
   }
-  result.subtotal = sumMoney(result.items.map((i) => i.lineTotal));
-  return result;
+  cart.items = ok.map((o) => o.line);
+  cart.subtotal = sumMoney(cart.items.map((i) => i.lineTotal));
+  cart.total = cart.subtotal;
+
+  // Discounts: evaluated by the ERP scheme engine, live. Local sample data has
+  // no ERP ids (and no schemes), so there is nothing to evaluate.
+  if (ok.length > 0 && ok.every((o) => o.product.id)) {
+    const quote = await quoteCart(
+      ok.map((o) => ({ productId: o.product.id!, skuId: o.line.skuId, quantity: o.line.quantity })),
+      { customerId },
+    );
+    applyQuote(
+      cart,
+      cart.items,
+      ok.map((o) => o.product),
+      quote,
+    );
+  }
+  return cart;
 }
 
 export const removedMessages: Record<RemovedReason, string> = {

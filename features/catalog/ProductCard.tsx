@@ -4,6 +4,7 @@ import { Badge, Card, CardTitle, ProductCardSkeleton } from "@/components/ui";
 import type { Product } from "@/lib/erp";
 import { listingPrice } from "@/lib/pricing";
 import { cx } from "@/lib/utils";
+import { OfferBadges } from "./OfferBadges";
 import { Price, savingsLabel } from "./Price";
 import { ProductImage } from "./ProductImage";
 
@@ -16,11 +17,11 @@ export function ProductCard({ product }: { product: Product }) {
       <Card interactive padding="none" className="relative flex h-full flex-col overflow-hidden">
         <div className="relative">
           <ProductImage product={product} variant="card" />
-          {savings && (
-            <Badge tone="brand" className="absolute top-2 left-2">
-              {savings}
-            </Badge>
-          )}
+          <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+            {savings && <Badge tone="brand">{savings}</Badge>}
+            {/* ERP scheme offers ("Buy 2 get 1 free"), hidden outside their dates. */}
+            <OfferBadges offers={product.offers} />
+          </div>
         </div>
         <div className="flex flex-1 flex-col gap-1 p-4">
           <CardTitle className="text-body-lg">

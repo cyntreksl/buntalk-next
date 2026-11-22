@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { validateCart } from "./api";
+import { validateCart, type AppliedScheme, type FreeItem } from "./api";
 import { useCartStore, type CartItem } from "./store";
 
 export type RemovedNotice = {
@@ -13,12 +13,23 @@ export type ServerCartState = {
   /** "checking" while the server is re-pricing; "error" if it couldn't (offline, ERP down). */
   status: "checking" | "ready" | "error";
   currency: string;
-  /** Subtotal calculated by the server from ERP prices. Null until a check finishes. */
-  subtotal: number | null;
-  /** Server line totals by line key. */
-  lineTotals: Record<string, number>;
+  /** Server totals from ERP prices and the ERP scheme engine. Null until a check finishes. */
+  totals: { subtotal: number; discountTotal: number; total: number } | null;
+  /** Server line totals and scheme discounts by line key. */
+  lines: Record<string, LinePricing>;
+  /** Schemes the ERP applied (which scheme gave which discount). */
+  appliedSchemes: AppliedScheme[];
+  freeItems: FreeItem[];
   /** Lines the server dropped (hidden, sold out), for the notice. */
   removed: RemovedNotice[];
+};
+
+export type LinePricing = {
+  /** Before offers. */
+  lineSubtotal: number;
+  lineTotal: number;
+  discount: number;
+  schemes: { id: string; name: string }[];
 };
 
 type Priced = {
@@ -26,8 +37,10 @@ type Priced = {
   signature: string;
   failed: boolean;
   currency: string;
-  subtotal: number | null;
-  lineTotals: Record<string, number>;
+  totals: ServerCartState["totals"];
+  lines: Record<string, LinePricing>;
+  appliedSchemes: AppliedScheme[];
+  freeItems: FreeItem[];
 };
 
 const signature = (items: CartItem[]) => items.map((i) => `${i.key}×${i.quantity}`).join("|");
@@ -46,8 +59,10 @@ export function useServerCart(enabled: boolean): ServerCartState {
     signature: "",
     failed: false,
     currency: "LKR",
-    subtotal: null,
-    lineTotals: {},
+    totals: null,
+    lines: {},
+    appliedSchemes: [],
+    freeItems: [],
   });
   const [removed, setRemoved] = useState<RemovedNotice[]>([]);
   // Cart signatures already sent to the server, so dropping lines doesn't trigger another check.
@@ -96,8 +111,24 @@ export function useServerCart(enabled: boolean): ServerCartState {
         signature: signature(latest) === sig ? nextSig : sig,
         failed: false,
         currency: result.currency,
-        subtotal: result.subtotal,
-        lineTotals: Object.fromEntries(result.items.map((i) => [i.key, i.lineTotal])),
+        totals: {
+          subtotal: result.subtotal,
+          discountTotal: result.discountTotal,
+          total: result.total,
+        },
+        lines: Object.fromEntries(
+          result.items.map((i) => [
+            i.key,
+            {
+              lineSubtotal: i.lineSubtotal,
+              lineTotal: i.lineTotal,
+              discount: i.discount,
+              schemes: i.schemes,
+            },
+          ]),
+        ),
+        appliedSchemes: result.appliedSchemes,
+        freeItems: result.freeItems,
       });
     }, 250);
 
@@ -113,8 +144,10 @@ export function useServerCart(enabled: boolean): ServerCartState {
   return {
     status: upToDate ? (priced.failed ? "error" : "ready") : "checking",
     currency: priced.currency,
-    subtotal: upToDate && !priced.failed ? priced.subtotal : null,
-    lineTotals: upToDate ? priced.lineTotals : {},
+    totals: upToDate && !priced.failed ? priced.totals : null,
+    lines: upToDate ? priced.lines : {},
+    appliedSchemes: upToDate ? priced.appliedSchemes : [],
+    freeItems: upToDate ? priced.freeItems : [],
     removed,
   };
 }

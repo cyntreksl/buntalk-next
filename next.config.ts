@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
     catalog: { stale: 5 * MINUTE, revalidate: 15 * MINUTE, expire: DAY },
     // Search results per query
     search: { stale: MINUTE, revalidate: 5 * MINUTE, expire: HOUR },
+    // Active schemes / offers. Short, so a new offer shows soon even without the webhook.
+    // Ending offers are also hidden in the browser at their end time (OfferBadges), and the
+    // cart is always priced live by the ERP, so an expired offer is never applied.
+    schemes: { stale: MINUTE, revalidate: 5 * MINUTE, expire: HOUR },
   },
 
   /** Old buntalk.lk page addresses → new pages (see lib/content-pages.ts). */

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DetailTemplate } from "@/components/layout/templates";
 import { ProductPurchase } from "@/features/cart";
-import { ProductImage } from "@/features/catalog";
+import { OfferList, ProductImage } from "@/features/catalog";
 import { categoryTrail } from "@/lib/categories";
 import { getCategories, getFeaturedProducts, getProduct } from "@/lib/erp";
 
@@ -65,6 +65,10 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
           {readyIn && <p className="text-body-sm font-semibold">Ready in {readyIn}</p>}
           {/* Price (per size), size picker and add to cart. Prices are the ERP's online prices. */}
           <ProductPurchase product={product} />
+          {/* ERP scheme offers on this product. Applied by the ERP in the cart, never here. */}
+          {product.offers && product.offers.length > 0 && (
+            <OfferList offers={product.offers} currency={product.currency} />
+          )}
         </>
       }
     >

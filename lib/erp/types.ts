@@ -59,6 +59,10 @@ export type Product = {
   /** Hours the bakery needs to prepare it, if the ERP sets one. */
   processingTimeHours?: number;
   skus?: Sku[];
+  /** ERP category link_id. */
+  categoryId?: string;
+  /** Active offers (ERP schemes) on this product, for badges. Applied only by the ERP. */
+  offers?: ProductOffer[];
 };
 
 /** Home page promotional banner. Managed in the ERP. */
@@ -75,17 +79,35 @@ export type Banner = {
   imageAlt?: string;
 };
 
-/** Discount scheme / offer. Applied by the ERP scheme engine (BUN-163). */
+/** Discount scheme / offer from the ERP scheme engine (BUN-163). The ERP applies it; the storefront only shows it. */
 export type Scheme = {
   id: string;
   name: string;
-  kind: "percent" | "amount" | "free_item" | "fixed_price";
-  rewardValue: number;
+  description?: string;
+  kind: "percent" | "amount" | "free_item" | "fixed_price" | "buy_x_get_y";
+  rewardValue?: number;
+  buyQuantity?: number;
+  getQuantity?: number;
   minSpend?: number;
+  /** ISO date-times. A scheme outside its window is never shown (and never applied by the ERP). */
   startsAt?: string;
   endsAt?: string;
   productIds: string[];
   categoryIds: string[];
+  /** Whole-order schemes (e.g. "LKR 500 off orders over LKR 10,000") have no products or categories. */
+  wholeOrder: boolean;
+};
+
+/** An offer shown on a product (badge, product page). */
+export type ProductOffer = {
+  schemeId: string;
+  /** Short badge text: "10% off", "Buy 2 get 1 free". */
+  label: string;
+  name: string;
+  description?: string;
+  minSpend?: number;
+  startsAt?: string;
+  endsAt?: string;
 };
 
 export type Customer = {

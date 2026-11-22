@@ -60,6 +60,7 @@ export function toProduct(p: ErpProduct): Product {
     printedPrice: orUndefined(p.price.printed_price),
     currency: p.price.currency,
     categorySlug: p.category.slug,
+    categoryId: p.category.link_id,
     featured: p.is_featured,
     code: p.code,
     imageUrls: productImages(p),
@@ -85,13 +86,17 @@ export function toScheme(s: ErpScheme): Scheme {
   return {
     id: s.link_id,
     name: s.name,
+    description: orUndefined(s.description),
     kind: s.kind,
-    rewardValue: s.reward_value,
+    rewardValue: orUndefined(s.reward_value),
+    buyQuantity: orUndefined(s.buy_quantity),
+    getQuantity: orUndefined(s.get_quantity),
     minSpend: orUndefined(s.min_spend),
     startsAt: orUndefined(s.starts_at),
     endsAt: orUndefined(s.ends_at),
     productIds: s.product_ids,
     categoryIds: s.category_ids,
+    wholeOrder: s.product_ids.length === 0 && s.category_ids.length === 0,
   };
 }
 

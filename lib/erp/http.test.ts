@@ -175,6 +175,14 @@ describe("erpRequest", () => {
     expect(init.body).toBe('{"a":1}');
   });
 
+  it("retries a read-only POST (price quote) like a GET", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(503, {}))
+      .mockResolvedValueOnce(json(200, { data: { id: "ok" } }));
+    await erpRequest({ method: "POST", path: "/prices/quote", schema: itemSchema, readOnly: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects responses that don't match the agreed shape", async () => {
     fetchMock.mockResolvedValue(json(200, { data: { id: 42 } }));
     const error = await erpGet("/x", itemSchema).catch((e) => e);

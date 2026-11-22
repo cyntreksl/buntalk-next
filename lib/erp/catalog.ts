@@ -8,16 +8,19 @@ import { ErpNotFoundError } from "./errors";
 import { erpGet } from "./http";
 import { toBanner, toCategory, toProduct } from "./mappers";
 import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
+import { offersFor } from "@/lib/offers";
 import {
   erpBannerSchema,
   erpCategorySchema,
   erpProductSchema,
+  erpSchemeSchema,
   listOf,
   one,
   type ErpCategory,
   type ErpProduct,
 } from "./schemas";
-import type { Banner, Category, Product } from "./types";
+import { toScheme } from "./mappers";
+import type { Banner, Category, Product, Scheme } from "./types";
 import { isProductVisible, visibleCategoryIds } from "./visibility";
 
 export type { Banner, Category, Product } from "./types";
@@ -57,8 +60,36 @@ async function getErpCategories(): Promise<ErpCategory[]> {
  * a visible category), even if the ERP sends hidden ones.
  */
 async function visibleProducts(products: ErpProduct[]): Promise<Product[]> {
-  const ids = visibleCategoryIds(await getErpCategories());
-  return products.filter((p) => isProductVisible(p, ids)).map(toProduct);
+  const [categories, schemes] = await Promise.all([getErpCategories(), getActiveSchemes()]);
+  const ids = visibleCategoryIds(categories);
+  const tree = categories.map((c) => ({ id: c.link_id, parentId: c.parent_link_id ?? undefined }));
+  return products
+    .filter((p) => isProductVisible(p, ids))
+    .map(toProduct)
+    .map((p) => ({ ...p, offers: offersFor(p, schemes, tree) }));
+}
+
+/**
+ * Active schemes (offers) everyone can get, from the ERP scheme engine.
+ * Inactive, ended and customer-only schemes are left out. Schemes that start
+ * later are kept with their dates, so their badges appear on time in the
+ * browser (OfferBadges) without waiting for a refresh.
+ *
+ * For showing offers only: discounts are always applied by the ERP
+ * (quoteCart in lib/erp/quote.ts).
+ */
+export async function getActiveSchemes(): Promise<Scheme[]> {
+  "use cache";
+  cacheLife("schemes");
+  cacheTag(cacheTags.catalog, cacheTags.schemes);
+
+  if (isSampleCatalogEnabled()) return [];
+  const { data } = await erpGet("/schemes", listOf(erpSchemeSchema));
+  const now = Date.now();
+  return data
+    .filter((s) => s.is_active && s.audience === "everyone")
+    .filter((s) => !s.ends_at || Date.parse(s.ends_at) > now)
+    .map(toScheme);
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -112,6 +143,7 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
     cacheTags.catalog,
     cacheTags.categories,
     cacheTags.products,
+    cacheTags.schemes,
     cacheTags.category(categorySlug),
   );
 
@@ -130,7 +162,13 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
 export async function getProduct(slug: string): Promise<Product | null> {
   "use cache";
   cacheLife("catalog");
-  cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products, cacheTags.product(slug));
+  cacheTag(
+    cacheTags.catalog,
+    cacheTags.categories,
+    cacheTags.products,
+    cacheTags.schemes,
+    cacheTags.product(slug),
+  );
 
   if (isSampleCatalogEnabled()) return sampleProducts.find((p) => p.slug === slug) ?? null;
   const res = await erpGet(`/products/${encodeURIComponent(slug)}`, one(erpProductSchema)).catch(
@@ -143,7 +181,13 @@ export async function getProduct(slug: string): Promise<Product | null> {
 export async function getFeaturedProducts(): Promise<Product[]> {
   "use cache";
   cacheLife("catalog");
-  cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.categories, cacheTags.products);
+  cacheTag(
+    cacheTags.catalog,
+    cacheTags.home,
+    cacheTags.categories,
+    cacheTags.products,
+    cacheTags.schemes,
+  );
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter((p) => p.featured);
   const { data } = await erpGet("/products", listOf(erpProductSchema), { featured: 1 });
@@ -165,7 +209,13 @@ export async function getHomeBanners(): Promise<Banner[]> {
 export async function getOfferProducts(): Promise<Product[]> {
   "use cache";
   cacheLife("catalog");
-  cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.categories, cacheTags.products);
+  cacheTag(
+    cacheTags.catalog,
+    cacheTags.home,
+    cacheTags.categories,
+    cacheTags.products,
+    cacheTags.schemes,
+  );
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter(isOnOffer);
   const { data } = await erpGet("/products", listOf(erpProductSchema), { on_offer: 1 });
@@ -175,7 +225,7 @@ export async function getOfferProducts(): Promise<Product[]> {
 export async function searchProducts(query: string): Promise<Product[]> {
   "use cache";
   cacheLife("search");
-  cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products);
+  cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.products, cacheTags.schemes);
 
   const q = query.trim().toLowerCase();
   if (!q) return [];
