@@ -7,8 +7,11 @@ type PaginationProps = {
   totalPages: number;
   /** Base path; the page number is added as ?page=N (page 1 has no parameter). */
   basePath: string;
-  /** Other query parameters to keep, e.g. { q: "buns" }. */
-  query?: Record<string, string>;
+  /**
+   * Other query parameters to keep, e.g. { q: "buns" }, or a list of pairs
+   * when a key repeats ([["size", "1 kg"], ["size", "2 kg"]]).
+   */
+  query?: Record<string, string> | [string, string][];
   className?: string;
 };
 
@@ -20,7 +23,11 @@ export function pageRange(page: number, total: number): Array<number | "gap"> {
   return sorted.flatMap((p, i) => (i > 0 && p - sorted[i - 1] > 1 ? ["gap" as const, p] : [p]));
 }
 
-function hrefFor(basePath: string, page: number, query?: Record<string, string>) {
+function hrefFor(
+  basePath: string,
+  page: number,
+  query?: Record<string, string> | [string, string][],
+) {
   const params = new URLSearchParams(query);
   if (page > 1) params.set("page", String(page));
   const search = params.toString();

@@ -82,6 +82,7 @@ export function toProduct(p: ErpProduct): Product {
     code: p.code,
     imageUrls: productImages(p),
     attributes: p.attributes.filter((a) => a.values.length > 0),
+    tags: p.tags,
     processingTimeHours: orUndefined(p.processing_time_hours),
     skus: p.skus.filter(isSkuVisible).map(toSku),
   };

@@ -18,12 +18,13 @@ export function SortSelect({
   action,
   value,
   options,
-  keep = {},
+  keep = [],
 }: {
   action: string;
   value: SortKey;
   options: SortKey[];
-  keep?: Record<string, string>;
+  /** Other query parameters to keep (search text, filters); keys may repeat. */
+  keep?: [string, string][];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -57,8 +58,8 @@ export function SortSelect({
       </div>
       <noscript>
         <form action={action} method="get" className="flex items-center gap-2">
-          {Object.entries(keep).map(([name, v]) => (
-            <input key={name} type="hidden" name={name} value={v} />
+          {keep.map(([name, v]) => (
+            <input key={`${name}=${v}`} type="hidden" name={name} value={v} />
           ))}
           <select name="sort" defaultValue={value} aria-label="Sort by">
             {options.map((key) => (

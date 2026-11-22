@@ -109,6 +109,11 @@ export const erpProductSchema = z.object({
    * values), e.g. [{ name: "Size", values: ["Small", "Large"] }].
    */
   attributes: z.array(z.object({ name: z.string(), values: z.array(z.string()) })).default([]),
+  /**
+   * NEW (BUN-173, ticket BUN-258): grouped tags for website filters, e.g.
+   * [{ group: "Occasion", value: "Birthday" }]. Only active tags in groups shown online.
+   */
+  tags: z.array(z.object({ group: z.string().min(1), value: z.string().min(1) })).default([]),
   /** NEW: how long the bakery needs to prepare it, in hours (shown as "Ready in …"). */
   processing_time_hours: z.number().nonnegative().nullable().optional(),
   is_active: z.boolean(),
