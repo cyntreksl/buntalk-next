@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DetailTemplate } from "@/components/layout/templates";
-import { AddToCartButton } from "@/features/cart";
-import { Price, ProductImage } from "@/features/catalog";
+import { ProductPurchase } from "@/features/cart";
+import { ProductImage } from "@/features/catalog";
 import { categoryTrail } from "@/lib/categories";
 import { getCategories, getFeaturedProducts, getProduct } from "@/lib/erp";
 
@@ -61,17 +61,10 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
       summary={
         <>
           <h1 className="text-h1 break-words">{product.name}</h1>
-          <Price
-            price={product.price}
-            compareAtPrice={product.compareAtPrice}
-            currency={product.currency}
-            size="lg"
-          />
           {product.description && <p className="text-muted-foreground">{product.description}</p>}
           {readyIn && <p className="text-body-sm font-semibold">Ready in {readyIn}</p>}
-          <AddToCartButton
-            item={{ sku: product.slug, name: product.name, unitPrice: product.price }}
-          />
+          {/* Price (per size), size picker and add to cart. Prices are the ERP's online prices. */}
+          <ProductPurchase product={product} />
         </>
       }
     >

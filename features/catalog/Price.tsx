@@ -6,11 +6,20 @@ type PriceProps = {
   compareAtPrice?: number;
   currency: string;
   size?: "sm" | "lg";
+  /** "From LKR 4,500.00": the lowest of several size prices. */
+  from?: boolean;
   className?: string;
 };
 
 /** Price, with the original price struck through when on offer. Screen readers hear "Was … now …". */
-export function Price({ price, compareAtPrice, currency, size = "sm", className }: PriceProps) {
+export function Price({
+  price,
+  compareAtPrice,
+  currency,
+  size = "sm",
+  from,
+  className,
+}: PriceProps) {
   const onOffer = isOnOffer({ price, compareAtPrice });
   const current = formatPrice(price, currency);
   return (
@@ -24,6 +33,7 @@ export function Price({ price, compareAtPrice, currency, size = "sm", className 
           size === "lg" ? "font-display text-h2" : "text-body",
         )}
       >
+        {from && <span className="text-body-sm text-muted-foreground font-semibold">From </span>}
         {current}
       </span>
       {onOffer && (

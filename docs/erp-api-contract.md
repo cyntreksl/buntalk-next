@@ -42,29 +42,32 @@ Messages in `422` and `409` responses are shown to customers, so please write th
 
 All endpoints below are **new**. ✅ = already used by the storefront (with sample data locally).
 
-| Method | Path                                                | Purpose                                                             | Storefront function / ticket |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------- |
-| GET    | `/categories`                                       | All active categories, every level, in display order (`sort_order`) | ✅ `getCategories()`         |
-| GET    | `/categories/{slug}`                                | One category                                                        | ✅ `getCategory()`           |
-| GET    | `/products?category={slug}&include_subcategories=1` | Products in a category and its sub-categories                       | ✅ `getProductsByCategory()` |
-| GET    | `/products?featured=1`                              | Featured products (home page)                                       | ✅ `getFeaturedProducts()`   |
-| GET    | `/products?on_offer=1`                              | Products with a scheme price now                                    | ✅ `getOfferProducts()`      |
-| GET    | `/products?search={q}`                              | Name / code / description search                                    | ✅ `searchProducts()`        |
-| GET    | `/products/{slug}`                                  | One product with SKUs and resolved prices                           | ✅ `getProduct()`            |
-| GET    | `/banners?placement=home`                           | Home page banners, in order                                         | ✅ `getHomeBanners()`        |
-| GET    | `/schemes`                                          | Active schemes / offers                                             | BUN-163                      |
-| POST   | `/prices/quote`                                     | Price a basket (SKUs, quantities, customer) with schemes applied    | BUN-163 / BUN-174            |
-| GET    | `/outlets`                                          | Active sales outlets (outlet locator)                               | Footer / outlet page         |
-| POST   | `/customers`                                        | Create or match a customer (`PosCustomer`)                          | BUN-186                      |
-| GET    | `/customers/{link_id}`                              | Customer profile                                                    | BUN-186                      |
-| POST   | `/orders`                                           | Place an order (`Idempotency-Key` required)                         | BUN-164                      |
-| GET    | `/orders/{link_id}`                                 | Order with lines and status                                         | Account → Orders             |
-| GET    | `/customers/{link_id}/orders`                       | A customer's orders                                                 | Account → Orders             |
+| Method | Path                                                | Purpose                                                             | Storefront function / ticket        |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
+| GET    | `/categories`                                       | All active categories, every level, in display order (`sort_order`) | ✅ `getCategories()`                |
+| GET    | `/categories/{slug}`                                | One category                                                        | ✅ `getCategory()`                  |
+| GET    | `/products?category={slug}&include_subcategories=1` | Products in a category and its sub-categories                       | ✅ `getProductsByCategory()`        |
+| GET    | `/products?featured=1`                              | Featured products (home page)                                       | ✅ `getFeaturedProducts()`          |
+| GET    | `/products?on_offer=1`                              | Products with a scheme price now                                    | ✅ `getOfferProducts()`             |
+| GET    | `/products?search={q}`                              | Name / code / description search                                    | ✅ `searchProducts()`               |
+| GET    | `/products/{slug}`                                  | One product with SKUs and resolved prices                           | ✅ `getProduct()`                   |
+| GET    | `/products/{slug}?customer={link_id}`               | Same, priced for that customer (group price level). Live calls only | ✅ `getProductsForCart()` → BUN-247 |
+| GET    | `/banners?placement=home`                           | Home page banners, in order                                         | ✅ `getHomeBanners()`               |
+| GET    | `/schemes`                                          | Active schemes / offers                                             | BUN-163                             |
+| POST   | `/prices/quote`                                     | Price a basket (SKUs, quantities, customer) with schemes applied    | BUN-163 / BUN-174                   |
+| GET    | `/outlets`                                          | Active sales outlets (outlet locator)                               | Footer / outlet page                |
+| POST   | `/customers`                                        | Create or match a customer (`PosCustomer`)                          | BUN-186                             |
+| GET    | `/customers/{link_id}`                              | Customer profile                                                    | BUN-186                             |
+| POST   | `/orders`                                           | Place an order (`Idempotency-Key` required)                         | BUN-164                             |
+| GET    | `/orders/{link_id}`                                 | Order with lines and status                                         | Account → Orders                    |
+| GET    | `/customers/{link_id}/orders`                       | A customer's orders                                                 | Account → Orders                    |
 
 Rules for catalog endpoints:
 
 - Send each item's `is_active` and `visible_online` flags. Hidden items may be included: the storefront filters them (BUN-161), and it needs hidden parent categories to hide their sub-categories.
 - Prices are **resolved by the ERP** (`ResolveProductPrice`) for the online channel, with schemes applied, so the storefront never calculates prices itself.
+- Each SKU (size/variant) carries its own resolved `price`. The cart charges the chosen SKU's price, or the product price for a product without SKUs.
+- With `customer={link_id}`, prices are that customer's own (customer group → price level → `PosPriceLevelPrice`), falling back to the online price. The storefront only sends `customer` on live per-customer calls (cart, checkout), never for cached pages (BUN-162, BUN-247).
 
 ## 4. Entities
 

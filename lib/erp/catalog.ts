@@ -189,20 +189,29 @@ export async function searchProducts(query: string): Promise<Product[]> {
 }
 
 /**
- * Live (uncached) check of products for the cart: always asks the ERP, so a
- * product hidden a second ago can't be added, even before the cached pages
- * refresh. Returns each slug's product, or null if it is hidden or gone.
+ * Live (uncached) read of products for the cart and checkout: always asks the
+ * ERP, so a product hidden or re-priced a second ago is seen straight away,
+ * even before the cached pages refresh. Returns each slug's product, or null
+ * if it is hidden or gone.
+ *
+ * With `customerId`, the ERP resolves that customer's own prices (their
+ * customer group's price level). Those prices are never cached or shown on
+ * shared pages; they only reach that customer's cart.
  */
-export async function getProductsForCart(slugs: string[]): Promise<Map<string, Product | null>> {
+export async function getProductsForCart(
+  slugs: string[],
+  options: { customerId?: string } = {},
+): Promise<Map<string, Product | null>> {
   const unique = [...new Set(slugs)];
   if (isSampleCatalogEnabled()) {
     return new Map(unique.map((s) => [s, sampleProducts.find((p) => p.slug === s) ?? null]));
   }
+  const query = options.customerId ? { customer: options.customerId } : undefined;
   const [{ data: categories }, products] = await Promise.all([
     erpGet("/categories", listOf(erpCategorySchema)),
     Promise.all(
       unique.map((slug) =>
-        erpGet(`/products/${encodeURIComponent(slug)}`, one(erpProductSchema))
+        erpGet(`/products/${encodeURIComponent(slug)}`, one(erpProductSchema), query)
           .then((r) => r.data)
           .catch(notFoundToNull),
       ),

@@ -2,12 +2,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge, Card, CardTitle, ProductCardSkeleton } from "@/components/ui";
 import type { Product } from "@/lib/erp";
+import { listingPrice } from "@/lib/pricing";
 import { cx } from "@/lib/utils";
 import { Price, savingsLabel } from "./Price";
 import { ProductImage } from "./ProductImage";
 
 export function ProductCard({ product }: { product: Product }) {
-  const savings = savingsLabel(product);
+  // Lowest size price ("From …") when sizes are priced differently. All prices are the ERP's.
+  const shown = listingPrice(product);
+  const savings = savingsLabel(shown);
   return (
     <li>
       <Card interactive padding="none" className="relative flex h-full flex-col overflow-hidden">
@@ -32,8 +35,9 @@ export function ProductCard({ product }: { product: Product }) {
             </Link>
           </CardTitle>
           <Price
-            price={product.price}
-            compareAtPrice={product.compareAtPrice}
+            price={shown.price}
+            compareAtPrice={shown.compareAtPrice}
+            from={shown.from}
             currency={product.currency}
             className="mt-auto pt-1"
           />

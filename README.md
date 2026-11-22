@@ -665,6 +665,22 @@ Where it applies:
 
 When something is hidden in the ERP, the ERP calls the revalidate webhook for that product or category. Product lists carry the `categories` tag too, so hiding a category also refreshes them.
 
+### Pricing
+
+The storefront never calculates a price. It shows and charges exactly what the ERP returns.
+
+- **Pages** (cached, the same for every visitor) show the ERP's online price:
+  - A product without sizes shows its price.
+  - A product with sizes shows a size picker on the product page, with each size's own price. Sold-out sizes are disabled.
+  - Product cards show "From" and the lowest size price when sizes are priced differently.
+- **Cart and checkout** are priced on the server (`lib/cart.server.ts`, `priceCart()`), from a **live** ERP read with no cache:
+  - The browser sends only product, size and quantity. Prices sent by the browser are ignored.
+  - Line totals and the subtotal are calculated on the server, in cents.
+  - The cart and checkout re-price whenever they open or a quantity changes (`useServerCart`). Hidden, sold-out or removed sizes are dropped with a notice.
+- **Customer prices:** for a signed-in customer, the server asks the ERP for that customer's own prices (`?customer=`, from their customer group's price level). They are never cached or shown to anyone else. This is switched on once sign-in exists (`getCustomerId()`, BUN-186), and needs ERP ticket BUN-247.
+- **Price changes:** the ERP calls the revalidate webhook for the product, and pages update. The cart picks up a new price straight away, because it reads live.
+- **Placing an order** (BUN-164 / BUN-201) must call `priceCart()` again on the server, and the ERP re-prices the order itself (BUN-244).
+
 ### Updates from the ERP
 
 - **On a timer:** catalog pages refresh every 15 minutes.
@@ -678,7 +694,7 @@ When something is hidden in the ERP, the ERP calls the revalidate webhook for th
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image and a broken image. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 

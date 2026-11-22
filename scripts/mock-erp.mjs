@@ -22,6 +22,8 @@
  * Like the real ERP, the mock sends hidden items too (is_active: false,
  * visible_online: false); the storefront must filter them out (BUN-161).
  * Hide a product:  POST /__mock/products {"slug":"fish-bun","visible_online":false}
+ * Change a price:  POST /__mock/products {"slug":"fish-bun","price":{"currency":"LKR","selling_price":"130.00","printed_price":null,"compare_at_price":null,"tax_mode":"inclusive"}}
+ * Customer prices: GET …/products/fish-bun?customer=cust-wholesale (see PRICE_LEVELS).
  */
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -39,6 +41,39 @@ const price = (selling, compareAt = null) => ({
   compare_at_price: compareAt === null ? null : compareAt.toFixed(2),
   tax_mode: "inclusive",
 });
+
+const sku = (code, size, selling, extra = {}) => ({
+  link_id: `sku-${code.toLowerCase()}`,
+  code,
+  barcode: null,
+  options: [{ type: "Size", value: size }],
+  base_quantity: "1.0000",
+  is_active: true,
+  in_stock: true,
+  price: price(selling),
+  ...extra,
+});
+
+/**
+ * Customer group price levels (ERP: PosCustomerGroup → PosPriceLevel →
+ * PosPriceLevelPrice). GET /products/{slug}?customer=<link_id> returns that
+ * customer's prices. Keyed by customer link_id → product slug or SKU link_id.
+ */
+const PRICE_LEVELS = {
+  "cust-wholesale": { "fish-bun": 100, "sku-1kg": 4000 },
+};
+
+function forCustomer(product, customer) {
+  const level = PRICE_LEVELS[customer];
+  if (!level) return product;
+  const override = (key, p) =>
+    level[key] === undefined ? p : { ...p, selling_price: level[key].toFixed(2) };
+  return {
+    ...product,
+    price: override(product.slug, product.price),
+    skus: product.skus.map((s) => ({ ...s, price: override(s.link_id, s.price) })),
+  };
+}
 
 function seed() {
   // sort_order is deliberately not alphabetical.
@@ -116,6 +151,13 @@ function seed() {
         { name: "Message", values: ["Happy Birthday", "Custom"] },
       ],
       processing_time_hours: 48,
+      // Sizes with their own prices (BUN-162). 3 kg is sold out online.
+      skus: [
+        sku("1KG", "1 kg", 4500),
+        sku("2KG", "2 kg", 8500),
+        sku("3KG", "3 kg", 12000, { in_stock: false }),
+        sku("5KG", "5 kg", 19000, { visible_online: false }),
+      ],
     },
     {
       // Switched off for the website (BUN-161): never shown, can't be added to the cart.
@@ -256,7 +298,8 @@ const server = createServer(async (req, res) => {
   }
   if (route.startsWith("/products/")) {
     const p = state.products.find((x) => x.slug === decodeURIComponent(route.split("/")[2]));
-    return p ? send(res, 200, { data: p }) : send(res, 404, { message: "Not Found" });
+    if (!p) return send(res, 404, { message: "Not Found" });
+    return send(res, 200, { data: q.get("customer") ? forCustomer(p, q.get("customer")) : p });
   }
   if (route === "/banners") return send(res, 200, { data: state.banners });
   return send(res, 404, { message: "Not Found" });
