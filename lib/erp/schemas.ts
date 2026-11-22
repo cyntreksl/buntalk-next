@@ -211,6 +211,21 @@ export const erpCustomerSchema = z.object({
   phone: z.string().nullable(),
   email: z.string().nullable(),
   is_active: z.boolean(),
+  /** NEW (BUN-166): set when this customer was merged into another one. */
+  merged_into_link_id: uuid.nullable().optional(),
+  /** NEW (BUN-166): saved addresses. */
+  addresses: z
+    .array(
+      z.object({
+        label: z.string().nullable().optional(),
+        line1: z.string(),
+        line2: z.string().nullable().optional(),
+        city: z.string(),
+        notes: z.string().nullable().optional(),
+        is_default: z.boolean().default(false),
+      }),
+    )
+    .default([]),
 });
 
 export const erpOrderLineSchema = z.object({

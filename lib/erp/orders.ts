@@ -131,3 +131,52 @@ export async function getOrder(orderId: string): Promise<Order | null> {
     throw error;
   }
 }
+
+export type ErpCustomerProfile = {
+  name: string;
+  phone: string;
+  email?: string;
+  addresses: {
+    label?: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    notes?: string;
+    isDefault: boolean;
+  }[];
+};
+
+/**
+ * Replaces the customer's storefront-managed details in the ERP (BUN-166):
+ * name, phone, email and saved addresses. A full replace, so sending the
+ * same version twice is harmless. ERP answers: 409 when the phone or email
+ * belongs to another ERP customer; 404 when the customer no longer exists
+ * (e.g. merged); then the storefront links again by phone.
+ */
+export async function updateCustomer(
+  customerId: string,
+  profile: ErpCustomerProfile,
+  idempotencyKey: string,
+): Promise<Customer> {
+  const { data } = await erpRequest({
+    method: "PUT",
+    path: `/customers/${encodeURIComponent(customerId)}`,
+    schema: one(erpCustomerSchema),
+    idempotencyKey,
+    body: {
+      name: profile.name,
+      phone: profile.phone,
+      email: profile.email ?? null,
+      addresses: profile.addresses.map((a) => ({
+        label: a.label ?? null,
+        line1: a.line1,
+        line2: a.line2 ?? null,
+        city: a.city,
+        notes: a.notes ?? null,
+        is_default: a.isDefault,
+      })),
+      source: "storefront",
+    },
+  });
+  return toCustomer(data);
+}

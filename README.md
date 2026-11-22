@@ -603,6 +603,33 @@ Each order's fulfilment status is kept in step with the ERP (`lib/orders/sync.ts
 - **Payment status:** "pending" until payments exist (BUN-203).
 - **Checkout form:** the form that calls this API is BUN-201.
 
+## Customers
+
+Every storefront customer has exactly one linked ERP customer (BUN-166). The code is in `lib/customers/`.
+
+- **Storage:** the `customers` table (name, phone, email, ERP link, sync state) and `customer_addresses` (saved addresses with one default).
+  - Phone numbers are stored as `+94…` and emails in lower case. `077 123 4567`, `+94 77-123-4567` and `0771234567` are the same number.
+  - The same phone or email can't register twice (409 `phone_taken` / `email_taken`).
+- **Linking:**
+  - The first sync calls the ERP's `POST /customers`, which matches by phone, then email, or creates.
+  - A shop customer who signs up online is **linked, not duplicated**.
+  - `erp_customer_id` is unique, so one ERP customer can never be linked to two storefront accounts.
+- **Changes reach the ERP:**
+  - Every profile or address change bumps the customer's `version`. The sync worker sends the full profile with `PUT /customers/{id}` and records the version the ERP has.
+  - A change made while a sync is running is sent on the next run.
+  - If the ERP customer was merged away (404), the customer is linked again by phone.
+- **Sync status:** `pending` → `synced`. Two other outcomes:
+  - **failed** (ERP down): retried after 1, 2, 4 … minutes, up to 8 attempts, with an alert after 3.
+  - **conflict**: the phone or email belongs to another ERP customer, or two accounts match one ERP customer. Nothing is merged by guesswork; the team is alerted.
+- **Operations:**
+  - The every-minute cron (`POST /api/orders/retry`) also runs the customer queue.
+  - `GET /api/customers/failed` (with `ORDERS_OPS_SECRET`) lists conflicts and failures.
+  - Alerts use the shared `lib/alerts.ts` (`[customers:alert]` in the log, plus `ALERT_WEBHOOK_URL`).
+- **Who calls it:**
+  - Registration (BUN-187/192), the profile page (BUN-193) and saved addresses (BUN-198) use these functions, behind sign-in (BUN-186). There is deliberately no public API until then.
+  - Checkout uses the same phone format, so a guest order and a later sign-up match the same ERP customer.
+- **ERP side:** updates, structured addresses and merges need BUN-254. The mock ERP already implements them, and `customers.integration.test.ts` tests the real client against it.
+
 ## Errors, 404 and empty states
 
 ### 404: page not found

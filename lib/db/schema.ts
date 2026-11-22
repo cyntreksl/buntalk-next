@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -175,3 +176,83 @@ export const orderEvents = pgTable(
 
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
+
+/* ------------------------------------------------------------------------- */
+/* Customers (BUN-166)                                                        */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Where a customer's profile is in its sync with the ERP.
+ * - pending:  changed locally, not in the ERP yet
+ * - syncing:  being sent now (claimed by one worker)
+ * - synced:   the ERP has the latest version
+ * - failed:   temporary problem; retried automatically
+ * - conflict: the ERP says the phone/email belongs to a different customer,
+ *             or the ERP customer is already linked to another storefront
+ *             customer. A person has to sort it out (team is alerted).
+ */
+export const customerSyncStatus = pgEnum("customer_sync_status", [
+  "pending",
+  "syncing",
+  "synced",
+  "failed",
+  "conflict",
+]);
+
+/**
+ * A storefront customer: one row per person, linked to exactly one ERP
+ * customer (`erp_customer_id` is unique). Phone numbers are stored in one
+ * format (+94…) and emails in lower case, so the same person can't register
+ * twice. Sign-in (BUN-186) attaches to this row.
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    name: text().notNull(),
+    /** E.164, e.g. +94771234567 (lib/customers/phone.ts). */
+    phone: text().notNull().unique(),
+    /** Lower case. */
+    email: text().unique(),
+    erpCustomerId: text("erp_customer_id").unique(),
+
+    /** Bumped on every local change to the profile or addresses. */
+    version: integer().notNull().default(1),
+    /** The version the ERP has. Behind `version` = something to send. */
+    syncedVersion: integer("synced_version").notNull().default(0),
+    syncStatus: customerSyncStatus("sync_status").notNull().default("pending"),
+    syncAttempts: integer("sync_attempts").notNull().default(0),
+    lastSyncError: text("last_sync_error"),
+    nextSyncAt: timestamp("next_sync_at", { withTimezone: true }).defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customers_sync_idx").on(t.syncStatus, t.nextSyncAt)],
+);
+
+/** Saved delivery addresses (BUN-198). Sent to the ERP with the profile. */
+export const customerAddresses = pgTable(
+  "customer_addresses",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    /** "Home", "Office" … */
+    label: text(),
+    line1: text().notNull(),
+    line2: text(),
+    city: text().notNull(),
+    notes: text(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customer_addresses_customer_idx").on(t.customerId)],
+);
+
+export type Customer = typeof customers.$inferSelect;
+export type CustomerAddress = typeof customerAddresses.$inferSelect;

@@ -28,6 +28,9 @@
  * Orders (BUN-164): POST …/customers, POST …/orders (Idempotency-Key required;
  *   a repeated key returns the first result), GET …/orders/{id}.
  *   GET /__mock/orders lists them; POST /__mock/fail {"count":2,"status":503}
+ * Customers (BUN-166): PUT …/customers/{id} (409 if the phone/email belongs to
+ *   another customer, 404 if merged), GET …/customers/{id}. GET /__mock/customers
+ *   lists them; POST /__mock/customers/merge {"from","into"} merges two.
  *   POST /__mock/orders/status {"number":"WEB-1001","status":"preparing"} changes a status
  *   and sends the signed webhook (set MOCK_STOREFRONT_WEBHOOK_URL and MOCK_ERP_WEBHOOK_SECRET).
  *   makes the next 2 writes fail, to test the retry queue.
@@ -318,8 +321,21 @@ function seed() {
     products,
     banners,
     schemes,
-    // BUN-164: customers and online orders created by the storefront.
-    customers: [],
+    // BUN-164/166: customers (one already exists in the ERP, e.g. a walk-in
+    // shop customer, to test that signing up online links instead of duplicating).
+    customers: [
+      {
+        link_id: "cust-walkin",
+        code: "C00099",
+        name: "Sunil Fernando",
+        phone: "+94770000099",
+        email: null,
+        is_active: true,
+        source: "pos",
+        merged_into_link_id: null,
+        addresses: [],
+      },
+    ],
     orders: [],
     /** Idempotency-Key → stored response, so a repeated write returns the same result. */
     idempotency: {},
@@ -360,9 +376,10 @@ function createCustomer(body) {
   if (!body.name || !body.phone) {
     return { status: 422, body: { message: "Name and phone are required.", errors: {} } };
   }
+  const live = state.customers.filter((c) => !c.merged_into_link_id);
   const existing =
-    state.customers.find((c) => c.phone === body.phone) ??
-    (body.email ? state.customers.find((c) => c.email === body.email) : undefined);
+    live.find((c) => c.phone === body.phone) ??
+    (body.email ? live.find((c) => c.email === body.email) : undefined);
   if (existing) return { status: 200, body: { data: existing } };
   const n = state.customers.length + 1;
   const customer = {
@@ -373,9 +390,39 @@ function createCustomer(body) {
     email: body.email ?? null,
     is_active: true,
     source: body.source ?? "storefront",
+    merged_into_link_id: null,
+    addresses: [],
   };
   state.customers.push(customer);
   return { status: 201, body: { data: customer } };
+}
+
+/** PUT /customers/{id}: replace name, phone, email and addresses (BUN-166). */
+function updateCustomer(id, body) {
+  const customer = state.customers.find((c) => c.link_id === id);
+  if (!customer || customer.merged_into_link_id)
+    return { status: 404, body: { message: "Not Found" } };
+  const taken = state.customers.find(
+    (c) =>
+      c.link_id !== id &&
+      !c.merged_into_link_id &&
+      ((body.phone && c.phone === body.phone) || (body.email && c.email === body.email)),
+  );
+  if (taken) {
+    return {
+      status: 409,
+      body: {
+        message: `That phone number or email already belongs to ERP customer ${taken.code}.`,
+      },
+    };
+  }
+  Object.assign(customer, {
+    name: body.name ?? customer.name,
+    phone: body.phone ?? customer.phone,
+    email: body.email ?? null,
+    addresses: (body.addresses ?? []).map((a) => ({ ...a, is_default: Boolean(a.is_default) })),
+  });
+  return { status: 200, body: { data: customer } };
 }
 
 /** POST /orders: re-prices with the scheme engine and refuses (409) if the storefront's total differs. */
@@ -599,6 +646,15 @@ const server = createServer(async (req, res) => {
     if (path === "/__mock/state") return send(res, 200, state);
     if (path === "/__mock/reset") return ((state = seed()), send(res, 200, { ok: true }));
     if (path === "/__mock/orders") return send(res, 200, { data: state.orders });
+    if (path === "/__mock/customers") return send(res, 200, { data: state.customers });
+    if (path === "/__mock/customers/merge") {
+      // {"from":"cust-1","into":"cust-walkin"}: merge two ERP customers, like staff would.
+      const body = (await readBody(req)) ?? {};
+      const from = state.customers.find((c) => c.link_id === body.from);
+      if (!from) return send(res, 404, { message: "No such customer" });
+      from.merged_into_link_id = body.into;
+      return send(res, 200, { ok: true });
+    }
     if (path === "/__mock/orders/status") {
       // {"number":"WEB-1001","status":"preparing","webhook":true}: change an order's status
       // like staff would, and (unless webhook is false) notify the storefront.
@@ -688,6 +744,23 @@ const server = createServer(async (req, res) => {
     if (result.status < 400) state.idempotency[`${route}:${key}`] = result;
     return send(res, result.status, result.body);
   }
+  if (route.startsWith("/customers/") && req.method === "PUT") {
+    if (state.failNext.count > 0) {
+      state.failNext.count--;
+      return send(res, state.failNext.status, { message: "Simulated ERP outage" });
+    }
+    const key = req.headers["idempotency-key"];
+    const id = decodeURIComponent(route.split("/")[2]);
+    const seen = key ? state.idempotency[`PUT ${route}:${key}`] : undefined;
+    if (seen) return send(res, seen.status, seen.body);
+    const result = updateCustomer(id, (await readBody(req)) ?? {});
+    if (key && result.status < 400) state.idempotency[`PUT ${route}:${key}`] = result;
+    return send(res, result.status, result.body);
+  }
+  if (route.startsWith("/customers/")) {
+    const c = state.customers.find((x) => x.link_id === decodeURIComponent(route.split("/")[2]));
+    return c ? send(res, 200, { data: c }) : send(res, 404, { message: "Not Found" });
+  }
   if (route.startsWith("/orders/")) {
     const o = state.orders.find((x) => x.link_id === decodeURIComponent(route.split("/")[2]));
     return o ? send(res, 200, { data: o }) : send(res, 404, { message: "Not Found" });
@@ -700,6 +773,8 @@ const server = createServer(async (req, res) => {
   }
   return send(res, 404, { message: "Not Found" });
 });
+
+export { server };
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`[mock-erp] listening on ${ORIGIN} (tenant "${TENANT}", key "${API_KEY}")`);

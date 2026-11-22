@@ -33,6 +33,8 @@ export {
   createOrder,
   getOrder,
   matchOrCreateCustomer,
+  updateCustomer,
+  type ErpCustomerProfile,
   type ErpOrderInput,
   type ErpOrderLineInput,
 } from "./orders";

@@ -116,6 +116,8 @@ export type Customer = {
   name: string;
   phone?: string;
   email?: string;
+  /** Set when the ERP merged this customer into another one (use that id instead). */
+  mergedIntoId?: string;
 };
 
 export type OrderStatus =
