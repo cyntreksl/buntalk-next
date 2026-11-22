@@ -49,7 +49,7 @@ export function ProductImage({ product, variant = "detail", priority }: ProductI
     <div
       className={cx(
         "bg-surface-muted relative aspect-square w-full overflow-hidden",
-        variant === "detail" && "rounded-brand",
+        variant === "detail" ? "rounded-2xl" : "rounded-xl",
       )}
     >
       {showImage ? (

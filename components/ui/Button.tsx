@@ -35,7 +35,7 @@ export function buttonClasses({
   className?: string;
 } = {}) {
   return cx(
-    "inline-flex shrink-0 items-center justify-center rounded-md font-bold whitespace-nowrap transition-colors",
+    "inline-flex shrink-0 items-center justify-center rounded-full font-bold whitespace-nowrap transition-colors",
     "disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
     variants[variant],
     sizes[size],

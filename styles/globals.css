@@ -10,7 +10,8 @@
    * and anchor links scroll their target clear of it.
    */
   :root {
-    --header-height: calc(4rem + 1px);
+    /* Phones/tablets: 64px top row + 56px search row. */
+    --header-height: calc(7.5rem + 1px);
     --sticky-offset: calc(var(--header-height) + 1.5rem);
   }
   @media (width >= 64rem) {
@@ -28,11 +29,17 @@
     @apply bg-background text-body text-foreground font-sans antialiased;
   }
 
+  /* Headings: clean extra-bold sans (marketplace style). The rounded display
+     face is kept for big hero headlines via the text-display class. */
   h1,
   h2,
   h3,
   h4 {
-    @apply font-display text-heading font-bold tracking-tight;
+    @apply text-heading font-sans font-extrabold tracking-tight;
+  }
+
+  .text-display {
+    @apply font-display font-bold;
   }
 
   :focus-visible {

@@ -11,7 +11,8 @@ import { useSessionStatus } from "./AccountMenu";
 
 /**
  * Mobile and tablet navigation (below lg): a hamburger button that opens a
- * drawer with search, categories, account links and the language slot.
+ * drawer with categories, account links and the language slot. (Search
+ * sits in the header itself, under the top row.)
  *
  * The drawer is the shared <Drawer> (native <dialog>): focus moves into it,
  * Tab stays inside, Esc or the close button closes it, and focus returns to
@@ -24,7 +25,8 @@ export function MobileNav({
 }: {
   /** Category tree in ERP order. */
   categories: CategoryNode[];
-  search: ReactNode;
+  /** Optional search box inside the drawer. */
+  search?: ReactNode;
   languageSwitcher: ReactNode;
 }) {
   const [open, setOpen] = useState(false);

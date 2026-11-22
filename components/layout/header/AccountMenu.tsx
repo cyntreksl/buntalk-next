@@ -58,22 +58,22 @@ export function AccountMenu() {
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
-        className="text-foreground hover:bg-surface-muted inline-flex h-10 items-center gap-1.5 rounded-md px-2"
+        className="text-foreground hover:bg-surface-muted inline-flex h-10 items-center gap-1.5 rounded-full px-2.5"
       >
         <UserIcon size={22} />
-        <span className="text-body-sm hidden font-bold xl:inline">
+        <span className="text-body-sm hidden font-bold lg:inline">
           {signedIn ? "Account" : "Sign in"}
         </span>
-        <span className="sr-only xl:hidden">{signedIn ? "Account menu" : "Sign in menu"}</span>
+        <span className="sr-only lg:hidden">{signedIn ? "Account menu" : "Sign in menu"}</span>
         <ChevronDownIcon
           size={16}
-          className={cx("hidden transition-transform xl:block", open && "rotate-180")}
+          className={cx("hidden transition-transform lg:block", open && "rotate-180")}
         />
       </button>
       <div
         id={menuId}
         hidden={!open}
-        className="border-border bg-surface absolute right-0 z-50 mt-2 w-56 rounded-lg border p-2 shadow-lg"
+        className="border-border bg-surface absolute right-0 z-50 mt-2 w-60 rounded-xl border p-2 shadow-lg"
       >
         {signedIn ? (
           <nav aria-label="Account">
@@ -95,7 +95,7 @@ export function AccountMenu() {
             {/* TODO(BUN-186): link to the sign-in and register pages. */}
             <Link
               href="/account"
-              className="bg-primary text-primary-foreground hover:bg-primary-hover text-body-sm block rounded-md px-3 py-2 text-center font-bold"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover text-body-sm block rounded-full px-3 py-2 text-center font-bold"
             >
               Sign in
             </Link>
