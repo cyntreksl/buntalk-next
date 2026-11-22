@@ -33,10 +33,17 @@ export function toCategory(c: ErpCategory): Category {
   };
 }
 
+const isImageUrl = (u: string | null | undefined): u is string =>
+  Boolean(u) && URL.canParse(u!) && /^https?:/.test(u!);
+
+/** An absolute http(s) image URL, or undefined. */
+function validImageUrl(u: string | null | undefined): string | undefined {
+  return isImageUrl(u) ? u : undefined;
+}
+
 /** Main image first, then gallery images; anything that isn't a valid absolute URL is dropped. */
 function productImages(p: ErpProduct): string[] {
-  const urls = [p.image_url, ...p.gallery_urls].filter((u): u is string => Boolean(u));
-  return [...new Set(urls)].filter((u) => URL.canParse(u) && /^https?:/.test(u));
+  return [...new Set([p.image_url, ...p.gallery_urls].filter(isImageUrl))];
 }
 
 export function toSku(s: ErpSku): Sku {
@@ -47,6 +54,9 @@ export function toSku(s: ErpSku): Sku {
     price: s.price.selling_price,
     compareAtPrice: compareAt(s.price.selling_price, s.price.compare_at_price),
     inStock: s.in_stock ?? true,
+    imageUrl: validImageUrl(s.image_url),
+    netWeightGrams: orUndefined(s.net_weight_grams),
+    servings: orUndefined(s.servings),
   };
 }
 
@@ -56,6 +66,9 @@ export function toProduct(p: ErpProduct): Product {
     slug: p.slug,
     name: p.name,
     description: p.description ?? "",
+    shortDescription: orUndefined(p.short_description?.trim() || null),
+    netWeightGrams: orUndefined(p.net_weight_grams),
+    servings: orUndefined(p.servings),
     price: p.price.selling_price,
     compareAtPrice: compareAt(p.price.selling_price, p.price.compare_at_price),
     printedPrice: orUndefined(p.price.printed_price),

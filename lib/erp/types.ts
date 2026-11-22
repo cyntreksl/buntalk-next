@@ -37,6 +37,10 @@ export type Sku = {
   price: number;
   compareAtPrice?: number;
   inStock: boolean;
+  /** Photo of this size; the product page shows it when the size is picked. */
+  imageUrl?: string;
+  netWeightGrams?: number;
+  servings?: number;
 };
 
 export type Product = {
@@ -45,6 +49,11 @@ export type Product = {
   slug: string;
   name: string;
   description: string;
+  /** One or two lines next to the price. Undefined until the ERP sends it (BUN-257). */
+  shortDescription?: string;
+  netWeightGrams?: number;
+  /** "Serves 8". */
+  servings?: number;
   price: number;
   /** Original price when the product is on offer (higher than `price`). */
   compareAtPrice?: number;

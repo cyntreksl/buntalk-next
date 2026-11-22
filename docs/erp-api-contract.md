@@ -91,36 +91,42 @@ tables today.
 
 ### Product (`EndProduct`)
 
-| Field                                               | Type                      | Notes                                                                                                                      |
-| --------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `link_id`, `code`                                   | uuid, string              |                                                                                                                            |
-| `slug`                                              | string                    | **NEW**. URL name, unique per tenant                                                                                       |
-| `name`                                              | string                    |                                                                                                                            |
-| `description`                                       | string, null              |                                                                                                                            |
-| `category`                                          | `{ link_id, slug, name }` |                                                                                                                            |
-| `image_url`                                         | url, null                 | The product photo (`EndProduct::imageUrl()`, as in the staff `EndProductResource`). Missing or invalid = placeholder image |
-| `gallery_urls`                                      | url[]                     | **NEW**. Extra photos                                                                                                      |
-| `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`)                                  |
-| `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing         |
-| `is_active`, `is_customisable`, `allows_fractional` | boolean                   | `is_customisable`: Cake Studio product; the card shows "Customize" instead of "Add to cart" (BUN-170)                      |
-| `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                               |
-| `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                              |
-| `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"               |
-| `created_at`                                        | ISO datetime, null        | **NEW** (BUN-169, ticket BUN-256). When first published; powers "Newest"                                                   |
-| `price`                                             | Price                     | Product default price                                                                                                      |
-| `skus`                                              | Sku[]                     |                                                                                                                            |
+| Field                                               | Type                      | Notes                                                                                                                               |
+| --------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `link_id`, `code`                                   | uuid, string              |                                                                                                                                     |
+| `slug`                                              | string                    | **NEW**. URL name, unique per tenant                                                                                                |
+| `name`                                              | string                    |                                                                                                                                     |
+| `description`                                       | string, null              | The full description ("Product details")                                                                                            |
+| `short_description`                                 | string, null              | **NEW** (BUN-171, ticket BUN-257). One or two lines next to the price. Until then, the first lines of `description` are shown there |
+| `net_weight_grams`                                  | number, null              | **NEW** (BUN-257). From `gram_weight`                                                                                               |
+| `servings`                                          | integer, null             | **NEW** (BUN-257). "Serves 8"                                                                                                       |
+| `category`                                          | `{ link_id, slug, name }` |                                                                                                                                     |
+| `image_url`                                         | url, null                 | The product photo (`EndProduct::imageUrl()`, as in the staff `EndProductResource`). Missing or invalid = placeholder image          |
+| `gallery_urls`                                      | url[]                     | **NEW**. Extra photos                                                                                                               |
+| `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`)                                           |
+| `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing                  |
+| `is_active`, `is_customisable`, `allows_fractional` | boolean                   | `is_customisable`: Cake Studio product; the card shows "Customize" instead of "Add to cart" (BUN-170)                               |
+| `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                                        |
+| `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                                       |
+| `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"                        |
+| `created_at`                                        | ISO datetime, null        | **NEW** (BUN-169, ticket BUN-256). When first published; powers "Newest"                                                            |
+| `price`                                             | Price                     | Product default price                                                                                                               |
+| `skus`                                              | Sku[]                     |                                                                                                                                     |
 
 ### Sku (`EndProductSku`)
 
-| Field                        | Type                      | Notes                                            |
-| ---------------------------- | ------------------------- | ------------------------------------------------ |
-| `link_id`, `code`, `barcode` | uuid, string, string/null |                                                  |
-| `options`                    | `{ type, value }[]`       | From the SKU's option values (`combination_key`) |
-| `base_quantity`              | decimal string            |                                                  |
-| `is_active`                  | boolean                   |                                                  |
-| `visible_online`             | boolean                   | **NEW** (BUN-161). Hide one size/variant online  |
-| `in_stock`                   | boolean                   | **NEW**. Can it be ordered online now?           |
-| `price`                      | Price                     |                                                  |
+| Field                        | Type                      | Notes                                                                               |
+| ---------------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| `link_id`, `code`, `barcode` | uuid, string, string/null |                                                                                     |
+| `options`                    | `{ type, value }[]`       | From the SKU's option values (`combination_key`)                                    |
+| `base_quantity`              | decimal string            |                                                                                     |
+| `is_active`                  | boolean                   |                                                                                     |
+| `visible_online`             | boolean                   | **NEW** (BUN-161). Hide one size/variant online                                     |
+| `in_stock`                   | boolean                   | **NEW**. Can it be ordered online now?                                              |
+| `image_url`                  | url, null                 | **NEW** (BUN-171, ticket BUN-257). Photo of this size; shown first when it's picked |
+| `net_weight_grams`           | number, null              | **NEW** (BUN-257). From the option values with `scaling = net_weight`               |
+| `servings`                   | integer, null             | **NEW** (BUN-257). People this size serves                                          |
+| `price`                      | Price                     |                                                                                     |
 
 ### Price (`ProductPriceVersion` values)
 
@@ -304,31 +310,32 @@ The storefront links each storefront customer to exactly one ERP customer, and s
 
 Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP side)". Each ticket is linked to the storefront ticket it blocks. Add a new ticket there for any new gap.
 
-| Ticket  | ERP work                                                      | Blocks                    |
-| ------- | ------------------------------------------------------------- | ------------------------- |
-| BUN-233 | API foundation: routes, machine credential, error format      | BUN-159, BUN-230          |
-| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`)      | BUN-160                   |
-| BUN-235 | Slugs on products and categories                              | BUN-160, BUN-246          |
-| BUN-236 | Category parent and display order                             | BUN-160                   |
-| BUN-237 | Preparation (processing) time                                 | BUN-160                   |
-| BUN-238 | Public image URLs, image host, extra photos                   | BUN-160                   |
-| BUN-239 | "Show on the website" switch                                  | BUN-161                   |
-| BUN-240 | Featured products and home banners                            | BUN-157                   |
-| BUN-241 | Online price channel, resolved and compare-at prices          | BUN-162, BUN-174          |
-| BUN-242 | Schemes and basket price quote                                | BUN-163, BUN-177          |
-| BUN-243 | Customer create/match and read                                | BUN-166, 192, 195, 196    |
-| BUN-244 | Online orders: model, place, status                           | BUN-164, BUN-165, BUN-201 |
-| BUN-245 | Sales outlets endpoint                                        | BUN-201                   |
-| BUN-246 | Revalidate webhook calls from the ERP                         | BUN-167                   |
-| BUN-247 | Customer-specific prices (customer group price levels)        | BUN-162, BUN-196          |
-| BUN-248 | Promotions scheme engine (shared by POS and web)              | BUN-163, BUN-208, BUN-242 |
-| BUN-250 | Ingredients, allergens and dietary tags per product           | BUN-249                   |
-| BUN-251 | Delivery areas, delivery fees and time slots                  | BUN-164, BUN-199          |
-| BUN-252 | Cake Studio cakes as lines of an online order                 | BUN-164, BUN-184          |
-| BUN-253 | Online order fulfilment workflow and status webhooks          | BUN-165, BUN-194          |
-| BUN-254 | Update storefront customers: profile, addresses, merges       | BUN-166, BUN-193, BUN-198 |
-| BUN-255 | Catalog change feed (`updated_since`) for the scheduled check | BUN-167                   |
-| BUN-256 | Product popularity and publish date (sorting)                 | BUN-169                   |
+| Ticket  | ERP work                                                                  | Blocks                    |
+| ------- | ------------------------------------------------------------------------- | ------------------------- |
+| BUN-233 | API foundation: routes, machine credential, error format                  | BUN-159, BUN-230          |
+| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`)                  | BUN-160                   |
+| BUN-235 | Slugs on products and categories                                          | BUN-160, BUN-246          |
+| BUN-236 | Category parent and display order                                         | BUN-160                   |
+| BUN-237 | Preparation (processing) time                                             | BUN-160                   |
+| BUN-238 | Public image URLs, image host, extra photos                               | BUN-160                   |
+| BUN-239 | "Show on the website" switch                                              | BUN-161                   |
+| BUN-240 | Featured products and home banners                                        | BUN-157                   |
+| BUN-241 | Online price channel, resolved and compare-at prices                      | BUN-162, BUN-174          |
+| BUN-242 | Schemes and basket price quote                                            | BUN-163, BUN-177          |
+| BUN-243 | Customer create/match and read                                            | BUN-166, 192, 195, 196    |
+| BUN-244 | Online orders: model, place, status                                       | BUN-164, BUN-165, BUN-201 |
+| BUN-245 | Sales outlets endpoint                                                    | BUN-201                   |
+| BUN-246 | Revalidate webhook calls from the ERP                                     | BUN-167                   |
+| BUN-247 | Customer-specific prices (customer group price levels)                    | BUN-162, BUN-196          |
+| BUN-248 | Promotions scheme engine (shared by POS and web)                          | BUN-163, BUN-208, BUN-242 |
+| BUN-250 | Ingredients, allergens and dietary tags per product                       | BUN-249                   |
+| BUN-251 | Delivery areas, delivery fees and time slots                              | BUN-164, BUN-199          |
+| BUN-252 | Cake Studio cakes as lines of an online order                             | BUN-164, BUN-184          |
+| BUN-253 | Online order fulfilment workflow and status webhooks                      | BUN-165, BUN-194          |
+| BUN-254 | Update storefront customers: profile, addresses, merges                   | BUN-166, BUN-193, BUN-198 |
+| BUN-255 | Catalog change feed (`updated_since`) for the scheduled check             | BUN-167                   |
+| BUN-256 | Product popularity and publish date (sorting)                             | BUN-169                   |
+| BUN-257 | Product page details: short description, photo per size, weight, servings | BUN-171                   |
 
 ## 6. Open questions for the ERP team
 

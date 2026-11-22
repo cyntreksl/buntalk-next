@@ -43,3 +43,10 @@ export function lineTotal(unitPrice: number, quantity: number): number {
 export function sumMoney(amounts: number[]): number {
   return amounts.reduce((sum, a) => sum + Math.round(a * 100), 0) / 100;
 }
+
+/** The size a product page starts with: the first one in stock, else the first. */
+export function defaultSkuId(
+  skus: { id: string; inStock: boolean }[] | undefined,
+): string | undefined {
+  return (skus?.find((s) => s.inStock) ?? skus?.[0])?.id;
+}

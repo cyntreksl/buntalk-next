@@ -134,3 +134,9 @@ export const ExternalLinkIcon = (p: IconProps) => (
     <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
   </Icon>
 );
+export const ZoomInIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5M11 8v6M8 11h6" />
+  </Icon>
+);

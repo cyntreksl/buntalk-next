@@ -153,6 +153,15 @@ function seed() {
       price: price(120),
       is_featured: true,
       image_url: `${ORIGIN}/images/buntalk-logo-compact.png`,
+      // BUN-171: gallery photos, a short description, weight and servings.
+      gallery_urls: [
+        `${ORIGIN}/images/gen/Fish%20bun%20inside.svg?bg=f6c99a`,
+        `${ORIGIN}/images/gen/Fish%20bun%20box.svg?bg=e9b4a0`,
+        `${ORIGIN}/images/does-not-exist.jpg`,
+      ],
+      short_description: "Soft bun filled with spicy fish and potato, baked fresh every morning.",
+      net_weight_grams: 90,
+      servings: 1,
     },
     {
       slug: "sausage-bun",
@@ -183,9 +192,20 @@ function seed() {
       ],
       processing_time_hours: 48,
       // Sizes with their own prices (BUN-162). 3 kg is sold out online.
+      image_url: `${ORIGIN}/images/gen/Chocolate%20cake.svg?bg=c99a7a`,
+      gallery_urls: [`${ORIGIN}/images/gen/Cake%20slice.svg?bg=d9b8a0`],
+      // BUN-171: each size has its own photo, weight and servings.
       skus: [
-        sku("1KG", "1 kg", 4500),
-        sku("2KG", "2 kg", 8500),
+        sku("1KG", "1 kg", 4500, {
+          image_url: `${ORIGIN}/images/gen/1%20kg%20cake.svg?bg=f2c6b0`,
+          net_weight_grams: 1000,
+          servings: 8,
+        }),
+        sku("2KG", "2 kg", 8500, {
+          image_url: `${ORIGIN}/images/gen/2%20kg%20cake.svg?bg=b9d3c2`,
+          net_weight_grams: 2000,
+          servings: 16,
+        }),
         sku("3KG", "3 kg", 12000, { in_stock: false }),
         sku("5KG", "5 kg", 19000, { visible_online: false }),
       ],
@@ -687,6 +707,24 @@ const server = createServer(async (req, res) => {
       `[mock-erp] ${req.method} ${path}${url.search} ${res.statusCode} ${Date.now() - started}ms`,
     ),
   );
+
+  // Generated test photos (BUN-171 gallery): /images/gen/<label>.svg?bg=<hex>
+  if (path.startsWith("/images/gen/")) {
+    const label = decodeURIComponent(path.slice("/images/gen/".length).replace(/\.svg$/, ""))
+      .replace(/[^\w .-]/g, "")
+      .slice(0, 24);
+    const bg = /^[0-9a-f]{6}$/i.test(url.searchParams.get("bg") ?? "")
+      ? url.searchParams.get("bg")
+      : "f4d7c2";
+    res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "max-age=3600" });
+    return res.end(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">` +
+        `<rect width="800" height="800" fill="#${bg}"/>` +
+        `<circle cx="400" cy="360" r="180" fill="#ffffff" opacity="0.35"/>` +
+        `<text x="400" y="640" font-family="sans-serif" font-size="56" font-weight="700" text-anchor="middle" fill="#4a2511">${label}</text>` +
+        `</svg>`,
+    );
+  }
 
   // Test images
   if (path.startsWith("/images/")) {

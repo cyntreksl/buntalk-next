@@ -21,3 +21,8 @@ export function priceParts(amount: number, currency: string): { currency: string
       .join(""),
   };
 }
+
+/** Weight for display: 1500 → "1.5 kg", 250 → "250 g". */
+export function formatWeight(grams: number): string {
+  return grams >= 1000 ? `${Number((grams / 1000).toFixed(2))} kg` : `${Math.round(grams)} g`;
+}

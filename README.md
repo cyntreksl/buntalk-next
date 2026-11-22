@@ -820,16 +820,19 @@ The ERP is the single source of truth for categories and products. The storefron
 
 These ERP fields map to storefront fields:
 
-| ERP field                      | Storefront field                                  |
-| ------------------------------ | ------------------------------------------------- |
-| name, description              | `name`, `description`                             |
-| `code`                         | `code`, shown as "Item code"                      |
-| `image_url` and `gallery_urls` | `imageUrls`                                       |
-| option types and values        | `attributes`, e.g. Size: 1 kg, 2 kg               |
-| category                       | `categorySlug`                                    |
-| `processing_time_hours`        | `processingTimeHours`, shown as "Ready in 2 days" |
-| SKUs and prices                | `skus`, `price`                                   |
-| `is_customisable`              | `customizable` (Cake Studio product)              |
+| ERP field                                | Storefront field                                  |
+| ---------------------------------------- | ------------------------------------------------- |
+| name, description                        | `name`, `description`                             |
+| `code`                                   | `code`, shown as "Item code"                      |
+| `image_url` and `gallery_urls`           | `imageUrls`                                       |
+| option types and values                  | `attributes`, e.g. Size: 1 kg, 2 kg               |
+| category                                 | `categorySlug`                                    |
+| `processing_time_hours`                  | `processingTimeHours`, shown as "Ready in 2 days" |
+| SKUs and prices                          | `skus`, `price`                                   |
+| `short_description` (BUN-257)            | `shortDescription`, shown by the price            |
+| `net_weight_grams`, `servings` (BUN-257) | `netWeightGrams`, `servings` (product and size)   |
+| SKU `image_url` (BUN-257)                | `skus[].imageUrl`, the size's own photo           |
+| `is_customisable`                        | `customizable` (Cake Studio product)              |
 
 ### Product card (BUN-170)
 
@@ -849,6 +852,20 @@ These ERP fields map to storefront fields:
 | One size or no sizes | "Add to cart", adds 1 straight away             |
 
 The quick "Add to cart" goes through the same server check as the product page (`useAddToCart` in `features/cart`): the ERP confirms the product and price, then a toast confirms it. The whole card links to the product page; the button sits above that link, so clicking it doesn't open the page.
+
+### Product page (BUN-171)
+
+`/product/<slug>` is server-rendered and cached (static + ISR); a hidden or unknown product is a 404. It has:
+
+- **Photo gallery** (`features/product/ProductGallery.tsx`): one large photo, swipe on phones (CSS scroll-snap), arrows on desktop, and thumbnails. Click a photo to open it large; click again (or "Zoom in") to zoom and move the pointer to look around; ← → move between photos, Esc closes. A photo that fails to load is dropped.
+- **Name, short description** (with "Read more" down to the full description), **price** (with the discount, BUN-170) and the **weight and servings** of the picked size.
+- **Size picker:** picking a size updates the price, weight, servings and photo (the size's own photo comes first). The picker and gallery share the picked size through `SelectedSkuProvider`. Sold-out sizes can't be picked.
+- **Quantity and "Add to cart"**, checked with the ERP on the server, so hidden, removed or sold-out products can't be added. Cake Studio products show **"Customize in Cake Studio"** instead.
+- **Earliest ready time:** "Ready in 2 days. Order now and it can be ready on Tue 24 Nov", worked out in the browser from the ERP preparation time in Sri Lanka time (`lib/ready-time.ts`). Delivery slots come with BUN-251; checkout confirms the time.
+- **Product details:** full description, item code, category, net weight, servings, the product's options (size, flavour …) and preparation time.
+- **You may also like:** other products from the same category.
+
+Until the ERP sends `short_description`, size photos, weight and servings (ticket BUN-257), the page uses the description for both texts and leaves the rest out.
 
 ### Missing images
 
@@ -927,7 +944,7 @@ The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock 
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). For the product page (BUN-171), the fish bun has gallery photos (one broken), a short description, weight and servings, and the cake sizes have their own photos, weights and servings. `GET /images/gen/<label>.svg?bg=<hex>` draws a test photo. `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 
