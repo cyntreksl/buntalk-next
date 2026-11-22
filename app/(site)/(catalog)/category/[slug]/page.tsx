@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingTemplate } from "@/components/layout/templates";
 import { BagIcon, EmptyState, buttonClasses } from "@/components/ui";
-import { CategoryNav, ProductGrid } from "@/features/catalog";
+import { Suspense } from "react";
+import { CategoryNav, ProductGridSkeleton } from "@/features/catalog";
+import { ProductListing } from "@/features/catalog/ProductListing";
 import { CategoryHeader } from "@/features/catalog/CategoryHeader";
 import { SubcategoryLinks } from "@/features/catalog/SubcategoryLinks";
 import { categoryTrail } from "@/lib/categories";
@@ -34,7 +36,10 @@ export async function generateMetadata({
   return { title: category.name, description: category.description };
 }
 
-export default async function CategoryPage({ params }: PageProps<"/category/[slug]">) {
+export default async function CategoryPage({
+  params,
+  searchParams,
+}: PageProps<"/category/[slug]">) {
   const { slug } = await params;
   const [category, categories, products] = await Promise.all([
     getCategory(slug),
@@ -69,21 +74,27 @@ export default async function CategoryPage({ params }: PageProps<"/category/[slu
       sidebarTitle="Categories"
       sidebar={<CategoryNav categories={categories} current={category.slug} />}
     >
-      <ProductGrid
-        products={products}
-        empty={
-          <EmptyState
-            icon={<BagIcon size={32} />}
-            title="No products here yet"
-            description={<p>This category is empty right now. Try another category or search.</p>}
-            actions={
-              <Link href="/search" className={buttonClasses({ variant: "outline" })}>
-                Search products
-              </Link>
-            }
-          />
-        }
-      />
+      {/* Sorting and paging read ?sort= and ?page=, so the grid renders per request
+          (streamed into the prerendered page; data comes from the cached ERP read). */}
+      <Suspense fallback={<ProductGridSkeleton count={8} />}>
+        <ProductListing
+          products={products}
+          searchParams={searchParams}
+          basePath={`/category/${category.slug}`}
+          empty={
+            <EmptyState
+              icon={<BagIcon size={32} />}
+              title="No products here yet"
+              description={<p>This category is empty right now. Try another category or search.</p>}
+              actions={
+                <Link href="/search" className={buttonClasses({ variant: "outline" })}>
+                  Search products
+                </Link>
+              }
+            />
+          }
+        />
+      </Suspense>
     </ListingTemplate>
   );
 }

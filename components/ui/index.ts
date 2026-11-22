@@ -16,7 +16,7 @@ export { FormField, useFormField } from "./FormField"; // client
 export { Input, Textarea } from "./Input"; // client
 export { Pagination, pageRange } from "./Pagination";
 export { QuantityStepper } from "./QuantityStepper"; // client
-export { Select } from "./Select"; // client
+export { Select, type SelectOption } from "./Select"; // client
 export { ProductCardSkeleton, Skeleton } from "./Skeleton";
 export { Spinner } from "./Spinner";
 export { Tabs, type TabItem } from "./Tabs"; // client

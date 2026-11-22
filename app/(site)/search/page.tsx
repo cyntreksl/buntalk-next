@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ListingTemplate } from "@/components/layout/templates";
 import { Button, EmptyState, Input, SearchIcon } from "@/components/ui";
-import { ProductGrid, ProductGridSkeleton } from "@/features/catalog";
+import { ProductGridSkeleton } from "@/features/catalog";
+import { ProductListing } from "@/features/catalog/ProductListing";
 import { CategorySuggestions } from "@/features/catalog/CategorySuggestions";
 import { searchProducts } from "@/lib/erp";
 
@@ -49,11 +50,14 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <p className="text-muted-foreground" role="status">
-        {products.length} result{products.length === 1 ? "" : "s"} for &ldquo;{query}&rdquo;
-      </p>
-      <ProductGrid products={products} />
+    <section aria-label={`Results for ${query}`} className="flex flex-col gap-2">
+      <h2 className="text-h3">Results for &ldquo;{query}&rdquo;</h2>
+      <ProductListing
+        products={products}
+        searchParams={searchParams}
+        basePath="/search"
+        keep={{ q: query }}
+      />
     </section>
   );
 }

@@ -217,6 +217,9 @@ function seed() {
     attributes: [],
     processing_time_hours: null,
     skus: [],
+    // BUN-169: sort data (popularity = recent units sold; created_at = when published).
+    popularity: [40, 25, 60, 12, 3, 8][i] ?? 0,
+    created_at: new Date(Date.UTC(2026, 9, 1 + i * 5)).toISOString(),
     ...p,
   }));
   const day = 24 * 60 * 60 * 1000;

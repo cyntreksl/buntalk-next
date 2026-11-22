@@ -109,6 +109,13 @@ export const erpProductSchema = z.object({
   allows_fractional: z.boolean().default(false),
   /** NEW: shown in "Featured" on the home page. */
   is_featured: z.boolean().default(false),
+  /**
+   * NEW (BUN-169): how popular the product is (e.g. units sold online and in
+   * shops over the last 30 days). Higher = more popular. Powers "Most popular".
+   */
+  popularity: z.number().nonnegative().nullable().optional(),
+  /** NEW (BUN-169): when the product was first published. Powers "Newest". */
+  created_at: isoDateTime.nullable().optional(),
   /** Default (product-level) price. */
   price: erpPriceSchema,
   skus: z.array(erpSkuSchema).default([]),

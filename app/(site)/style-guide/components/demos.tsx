@@ -69,11 +69,16 @@ export function FormDemo() {
         <Input name="email" type="email" autoComplete="email" />
       </FormField>
       <FormField label="City" error={errors.city} required>
-        <Select name="city" defaultValue="" placeholder="Choose a city">
-          <option value="colombo">Colombo</option>
-          <option value="kandy">Kandy</option>
-          <option value="galle">Galle</option>
-        </Select>
+        <Select
+          name="city"
+          placeholder="Choose a city"
+          options={[
+            { value: "colombo", label: "Colombo" },
+            { value: "kandy", label: "Kandy" },
+            { value: "galle", label: "Galle" },
+            { value: "jaffna", label: "Jaffna (coming soon)", disabled: true },
+          ]}
+        />
       </FormField>
       <FormField label="Phone (disabled)">
         <Input name="phone" disabled placeholder="Not available yet" />

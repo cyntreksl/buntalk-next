@@ -105,6 +105,8 @@ tables today.
 | `is_active`, `is_customisable`, `allows_fractional` | boolean                   |                                                                                                                            |
 | `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                               |
 | `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                              |
+| `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"               |
+| `created_at`                                        | ISO datetime, null        | **NEW** (BUN-169, ticket BUN-256). When first published; powers "Newest"                                                   |
 | `price`                                             | Price                     | Product default price                                                                                                      |
 | `skus`                                              | Sku[]                     |                                                                                                                            |
 
@@ -326,6 +328,7 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-253 | Online order fulfilment workflow and status webhooks          | BUN-165, BUN-194          |
 | BUN-254 | Update storefront customers: profile, addresses, merges       | BUN-166, BUN-193, BUN-198 |
 | BUN-255 | Catalog change feed (`updated_since`) for the scheduled check | BUN-167                   |
+| BUN-256 | Product popularity and publish date (sorting)                 | BUN-169                   |
 
 ## 6. Open questions for the ERP team
 

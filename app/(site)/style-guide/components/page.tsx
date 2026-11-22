@@ -158,9 +158,11 @@ export default function ComponentsPage() {
 </FormField>
 
 <FormField label="City" error={errors.city}>
-  <Select name="city" defaultValue="" placeholder="Choose a city">
-    <option value="colombo">Colombo</option>
-  </Select>
+  <Select
+    name="city"
+    placeholder="Choose a city"
+    options={[{ value: "colombo", label: "Colombo" }, { value: "kandy", label: "Kandy" }]}
+  />
 </FormField>
 
 <FormField label="Delivery notes"><Textarea name="notes" /></FormField>
