@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button, QuantityStepper, Radio, RadioGroup, buttonClasses } from "@/components/ui";
-import { Price } from "@/features/catalog/Price";
+import { OfferPrice } from "@/features/catalog/OfferPrice";
 import { useSelectedSku } from "@/features/product/SelectedSku";
 import type { Product } from "@/lib/erp";
 import { defaultSkuId, variantLabel } from "@/lib/pricing";
@@ -22,6 +22,7 @@ type ProductPurchaseProps = {
     | "customizable"
     | "netWeightGrams"
     | "servings"
+    | "offers"
   >;
 };
 
@@ -58,11 +59,16 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <Price
+        {/* Final price, original price and saving; "Your price" when signed in (BUN-174). */}
+        <OfferPrice
+          slug={product.slug}
+          skuId={sku?.id}
           price={shown.price}
           compareAtPrice={shown.compareAtPrice}
           currency={product.currency}
           size="lg"
+          offers={product.offers}
+          showSaving
         />
         {facts.length > 0 && (
           <p className="text-body-sm text-muted-foreground font-semibold">{facts.join(" · ")}</p>

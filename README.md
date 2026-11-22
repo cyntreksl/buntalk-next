@@ -931,7 +931,11 @@ The storefront never calculates a price. It shows and charges exactly what the E
   - The browser sends only product, size and quantity. Prices sent by the browser are ignored.
   - Line totals and the subtotal are calculated on the server, in cents.
   - The cart and checkout re-price whenever they open or a quantity changes (`useServerCart`). Hidden, sold-out or removed sizes are dropped with a notice.
-- **Customer prices:** for a signed-in customer, the server asks the ERP for that customer's own prices (`?customer=`, from their customer group's price level). They are never cached or shown to anyone else. This is switched on once sign-in exists (`getCustomerId()`, BUN-186), and needs ERP ticket BUN-247.
+- **How a price is shown (BUN-174):** `OfferPrice` (`features/catalog/OfferPrice.tsx`) on cards and the product page shows the final price, the original price crossed out, and on the product page the saving ("You save LKR 30.00 (17%)"). Prices are formatted as "LKR 1,200.00" (`formatPrice`).
+- **Customer prices:** for a signed-in customer, the server asks the ERP for that customer's own prices (`?customer=`, from their customer group's price level). They are never cached or shown to anyone else.
+  - Cart and checkout use them through `priceCart()`.
+  - Cards and the product page show them as **"Your price"** (BUN-174): `CustomerPricesProvider` asks `GET /api/prices?slugs=…` once per grid, only when the visitor is signed in. That route reads the ERP live and returns nothing for anyone else. The cached pages themselves keep the online price.
+  - All of this switches on once sign-in exists (`getCustomerId()`, BUN-186), and needs ERP ticket BUN-247.
 - **Price changes:** the ERP calls the revalidate webhook for the product, and pages update. The cart picks up a new price straight away, because it reads live.
 - **Placing an order** (BUN-164 / BUN-201) must call `priceCart()` again on the server, and the ERP re-prices the order itself (BUN-244).
 
@@ -946,7 +950,9 @@ Discounts and promotions come from the ERP scheme engine. The storefront shows t
   - Customer-only schemes are never advertised.
 - **Dates:**
   - `getActiveSchemes()` leaves out inactive and ended schemes. It is cached briefly (the `schemes` profile: refreshed every 5 minutes).
-  - In the browser, `OfferBadges` also hides any offer outside its start and end time, minute by minute. A cached page can never show an expired offer, and a scheduled offer appears on time.
+  - In the browser, `OfferBadges` and `OfferPrice` check the time every 15 seconds. An ended offer disappears and its discounted price goes back to the original price, without reloading. A scheduled offer's badge appears on time.
+  - Cached product data is refreshed when the next offer starts or ends (`refreshAtNextOfferChange()` in `lib/erp/catalog.ts`, at most every minute), instead of up to 15 minutes later, so the next visitor gets the ERP's new price.
+  - The product page shows when each offer ends, in Sri Lanka time: "Ends today at 6:00 pm", "Ends tomorrow at 9:00 am" or "Valid until Sat 28 Nov" (`offerValidity()`).
 - **Cart and checkout:**
   - The server sends the cart to the ERP's `POST /prices/quote` (`lib/erp/quote.ts`), live and never cached. It shows exactly what the ERP returns:
     - each line's discount and which scheme gave it

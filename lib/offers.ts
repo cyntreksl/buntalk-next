@@ -112,3 +112,116 @@ export function withSchemeBackedDiscounts<T extends Discountable>(
     }),
   };
 }
+
+const STORE_TIME_ZONE = "Asia/Colombo";
+
+const calendarDay = (date: Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: STORE_TIME_ZONE }).format(date);
+
+/**
+ * When an offer ends, in Sri Lanka time (BUN-174): "Ends today at 6:00 pm",
+ * "Ends tomorrow at 9:00 am", or "Valid until Sat 28 Nov". Null for an
+ * offer without an end date. With `now` null (cached HTML, before the
+ * browser knows the time), always the date form.
+ */
+export function offerValidity(
+  offer: { endsAt?: string },
+  now: number | null = Date.now(),
+): string | null {
+  if (!offer.endsAt) return null;
+  const ends = new Date(offer.endsAt);
+  const today = now === null ? null : calendarDay(new Date(now));
+  const tomorrow = now === null ? null : calendarDay(new Date(now + 86_400_000));
+  const time = new Intl.DateTimeFormat("en-LK", {
+    timeZone: STORE_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+    .format(ends)
+    .toLowerCase();
+  if (calendarDay(ends) === today) return `Ends today at ${time}`;
+  if (calendarDay(ends) === tomorrow) return `Ends tomorrow at ${time}`;
+  const date = new Intl.DateTimeFormat("en-GB", {
+    timeZone: STORE_TIME_ZONE,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(ends);
+  return `Valid until ${date}`;
+}
+
+/**
+ * The next moment an offer starts or ends (ms), or null. Cached product data
+ * is refreshed by then, so a price lowered by a scheme goes back up on time
+ * (BUN-174).
+ */
+export function nextOfferChange(
+  schemes: { startsAt?: string; endsAt?: string }[],
+  now: number = Date.now(),
+): number | null {
+  const times = schemes
+    .flatMap((s) => [s.startsAt, s.endsAt])
+    .filter((t): t is string => Boolean(t))
+    .map((t) => Date.parse(t))
+    .filter((t) => Number.isFinite(t) && t > now);
+  return times.length > 0 ? Math.min(...times) : null;
+}
+
+/**
+ * The price to show right now (BUN-174). A crossed-out price comes from a
+ * scheme (see withSchemeBackedDiscounts). If every scheme on the product has
+ * ended since the page was cached, the ERP no longer gives that discount, so
+ * the original price is the price again, without a crossed-out price.
+ */
+export function priceNow<P extends { price: number; compareAtPrice?: number }>(
+  shown: P,
+  offers: { startsAt?: string; endsAt?: string }[] | undefined,
+  now: number = Date.now(),
+): P {
+  if (shown.compareAtPrice === undefined || !offers || offers.length === 0) return shown;
+  if (offers.some((o) => isWithinWindow(o, now))) return shown;
+  return { ...shown, price: shown.compareAtPrice, compareAtPrice: undefined };
+}
+
+/**
+ * What the price block shows (BUN-174): the ERP price, corrected for an
+ * offer that has ended (`now`, null before the browser knows the time), and
+ * the signed-in customer's own price when they have a different one ("Your
+ * price"; the usual price is then crossed out if it's higher).
+ */
+export function displayPrice(
+  shown: { price: number; compareAtPrice?: number },
+  {
+    offers,
+    now,
+    personal,
+  }: {
+    offers?: { startsAt?: string; endsAt?: string }[];
+    now: number | null;
+    personal?: number;
+  },
+): { price: number; compareAtPrice?: number; yourPrice: boolean } {
+  const current = now === null ? shown : priceNow(shown, offers, now);
+  if (personal === undefined || personal === current.price) return { ...current, yourPrice: false };
+  return {
+    price: personal,
+    compareAtPrice: personal < current.price ? current.price : undefined,
+    yourPrice: true,
+  };
+}
+
+/**
+ * The customer's price from GET /api/prices for a product: the chosen size's
+ * price, or (no size chosen, as on cards) the lowest size price, or the
+ * product price.
+ */
+export function personalPriceFor(
+  entry: { price: number; skus: Record<string, number> } | undefined,
+  skuId?: string,
+): number | undefined {
+  if (!entry) return undefined;
+  if (skuId) return entry.skus[skuId];
+  const sizes = Object.values(entry.skus);
+  return sizes.length > 0 ? Math.min(...sizes) : entry.price;
+}
