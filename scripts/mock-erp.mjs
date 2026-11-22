@@ -165,7 +165,8 @@ function seed() {
       slug: "vegetable-roll",
       name: "Vegetable roll",
       category: cat("short-eats"),
-      price: price(90),
+      // BUN-170: a compare-at price with no scheme behind it: the card must show a plain price.
+      price: price(90, 110),
       is_featured: true,
       // Points at a file that doesn't exist: the storefront must show a placeholder.
       image_url: `${ORIGIN}/images/does-not-exist.jpg`,
@@ -188,6 +189,15 @@ function seed() {
         sku("3KG", "3 kg", 12000, { in_stock: false }),
         sku("5KG", "5 kg", 19000, { visible_online: false }),
       ],
+    },
+    {
+      // BUN-170: a Cake Studio product: "Customizable" badge and a "Customize" button.
+      slug: "design-your-own-cake",
+      name: "Design your own cake",
+      category: cat("birthday-cakes"),
+      price: price(5000),
+      is_customisable: true,
+      processing_time_hours: 72,
     },
     {
       // Switched off for the website (BUN-161): never shown, can't be added to the cart.
@@ -251,6 +261,16 @@ function seed() {
       get_quantity: 1,
       product_ids: ["p-fish-bun"],
       ends_at: at(7),
+    }),
+    scheme({
+      // BUN-170: backs the sausage bun's compare-at price (LKR 180 → 150), so "Save 17%" shows.
+      link_id: "s-sausage-special",
+      name: "Sausage bun special",
+      description: "Sausage buns for LKR 150 this week",
+      kind: "fixed_price",
+      reward_value: "150.00",
+      product_ids: ["p-sausage-bun"],
+      ends_at: at(5),
     }),
     scheme({
       link_id: "s-cake-week",

@@ -35,18 +35,26 @@ function useCurrentOffers(offers: ProductOffer[] | undefined) {
   return (offers ?? []).filter((o) => (now === null ? true : isWithinWindow(o, now)));
 }
 
-/** Small offer badges ("Buy 2 get 1 free") for a product card. */
+/**
+ * Small offer badges for a product card: "Save 20%" and the scheme offers
+ * ("Buy 2 get 1 free"). They only show while an ERP scheme applies to the
+ * product (BUN-170), so "Save 20%" disappears with the scheme that gave it.
+ */
 export function OfferBadges({
   offers,
+  savings,
   className,
 }: {
   offers: ProductOffer[] | undefined;
+  /** "Save 20%" (from the ERP's compare-at price), or null. */
+  savings?: string | null;
   className?: string;
 }) {
   const current = useCurrentOffers(offers);
   if (current.length === 0) return null;
   return (
     <div className={cx("flex flex-wrap gap-1", className)}>
+      {savings && <Badge tone="brand">{savings}</Badge>}
       {current.map((o) => (
         <Badge key={o.schemeId} tone="brand">
           {o.label}

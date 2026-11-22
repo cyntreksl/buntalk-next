@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scheme } from "@/lib/erp";
-import { isWithinWindow, offersFor, schemeLabel } from "./offers";
+import { isWithinWindow, offersFor, schemeLabel, withSchemeBackedDiscounts } from "./offers";
 
 const scheme = (x: Partial<Scheme>): Scheme => ({
   id: "s",
@@ -73,5 +73,33 @@ describe("offersFor", () => {
       categories,
     );
     expect(offers.map((o) => o.schemeId)).toEqual(["other-category"]);
+  });
+});
+
+describe("withSchemeBackedDiscounts", () => {
+  const now = Date.parse("2026-11-22T10:00:00Z");
+  const product = {
+    price: 150,
+    compareAtPrice: 180,
+    skus: [{ price: 150, compareAtPrice: 180 }],
+  };
+
+  it("keeps the crossed-out price while a scheme applies", () => {
+    const p = { ...product, offers: [{ endsAt: "2026-11-25T00:00:00Z" }] };
+    expect(withSchemeBackedDiscounts(p, now)).toBe(p);
+  });
+
+  it("drops it when no scheme applies, on the product and its sizes", () => {
+    const p = withSchemeBackedDiscounts({ ...product, offers: [] }, now);
+    expect(p.compareAtPrice).toBeUndefined();
+    expect(p.skus[0].compareAtPrice).toBeUndefined();
+    expect(p.price).toBe(150);
+  });
+
+  it("drops it when the only scheme has ended or hasn't started", () => {
+    const ended = { ...product, offers: [{ endsAt: "2026-11-21T00:00:00Z" }] };
+    const later = { ...product, offers: [{ startsAt: "2026-11-23T00:00:00Z" }] };
+    expect(withSchemeBackedDiscounts(ended, now).compareAtPrice).toBeUndefined();
+    expect(withSchemeBackedDiscounts(later, now).compareAtPrice).toBeUndefined();
   });
 });

@@ -83,3 +83,32 @@ export function offersFor(
       endsAt: s.endsAt,
     }));
 }
+
+type Discountable = {
+  compareAtPrice?: number;
+  offers?: { startsAt?: string; endsAt?: string }[];
+  skus?: { compareAtPrice?: number }[];
+};
+
+/**
+ * A crossed-out price and "Save X%" are only shown while an ERP scheme
+ * applies to the product (BUN-170). If the ERP sends a compare-at price but
+ * no current scheme covers the product, the compare-at price is dropped (on
+ * the product and its sizes), so the card shows a plain price.
+ */
+export function withSchemeBackedDiscounts<T extends Discountable>(
+  product: T,
+  now: number = Date.now(),
+): T {
+  if ((product.offers ?? []).some((o) => isWithinWindow(o, now))) return product;
+  if (product.compareAtPrice === undefined && !product.skus?.some((s) => s.compareAtPrice)) {
+    return product;
+  }
+  return {
+    ...product,
+    compareAtPrice: undefined,
+    ...(product.skus && {
+      skus: product.skus.map((s) => ({ ...s, compareAtPrice: undefined })),
+    }),
+  };
+}

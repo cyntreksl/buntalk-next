@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Button, QuantityStepper, Radio, RadioGroup, toast } from "@/components/ui";
+import { Button, QuantityStepper, Radio, RadioGroup } from "@/components/ui";
 import { Price } from "@/features/catalog/Price";
 import type { Product } from "@/lib/erp";
 import { variantLabel } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
-import { checkItem } from "./api";
-import { useCartStore } from "./store";
+import { useAddToCart } from "./useAddToCart";
 
 type ProductPurchaseProps = {
   product: Pick<Product, "slug" | "name" | "price" | "compareAtPrice" | "currency" | "skus">;
@@ -23,47 +22,17 @@ type ProductPurchaseProps = {
  * if they have one). Nothing here calculates a price.
  */
 export function ProductPurchase({ product }: ProductPurchaseProps) {
-  const addItem = useCartStore((state) => state.addItem);
+  const { add: addToCart, adding } = useAddToCart();
   const skus = product.skus ?? [];
   const [skuId, setSkuId] = useState(() => (skus.find((s) => s.inStock) ?? skus[0])?.id);
   const [quantity, setQuantity] = useState(1);
-  const [adding, setAdding] = useState(false);
 
   const sku = skus.find((s) => s.id === skuId);
   const shown = sku ?? product;
   const soldOut = sku ? !sku.inStock : false;
 
   async function add() {
-    setAdding(true);
-    const result = await checkItem({ productSlug: product.slug, skuId, quantity });
-    setAdding(false);
-
-    if (!result.ok) {
-      const title =
-        result.reason === "not_available"
-          ? "Not available"
-          : result.reason === "sold_out"
-            ? "Sold out"
-            : "Couldn't add to cart";
-      toast.error(title, result.message);
-      return;
-    }
-    const {
-      key,
-      productSlug,
-      skuId: chosen,
-      name,
-      variant,
-      unitPrice,
-      quantity: added,
-    } = result.item;
-    const item = { key, productSlug, skuId: chosen, name, variant, unitPrice };
-    addItem(item, added);
-    toast.success(
-      "Added to cart",
-      `${added} × ${item.name}${item.variant ? ` (${item.variant})` : ""}`,
-    );
-    setQuantity(1);
+    if (await addToCart({ productSlug: product.slug, skuId, quantity })) setQuantity(1);
   }
 
   return (

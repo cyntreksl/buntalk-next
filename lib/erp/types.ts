@@ -53,6 +53,8 @@ export type Product = {
   currency: string;
   categorySlug: string;
   featured: boolean;
+  /** Made to order in Cake Studio (ERP is_customisable): the card shows "Customize" instead of "Add to cart". */
+  customizable?: boolean;
   /** Higher = more popular (from the ERP's sales). Undefined until the ERP sends it. */
   popularity?: number;
   /** When the product was first published (ISO). Undefined until the ERP sends it. */
