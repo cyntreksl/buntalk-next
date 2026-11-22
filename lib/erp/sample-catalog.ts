@@ -1,5 +1,5 @@
 import "server-only";
-import type { Banner, Category, Product } from "./catalog";
+import type { Banner, Category, Product } from "./types";
 
 /**
  * Sample data used only for local development when ERP credentials are not

@@ -15,8 +15,13 @@ const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
 
 const serverSchema = z.object({
+  // ERP API root, e.g. https://erp.example.com/api (see docs/erp-api-contract.md)
   ERP_API_BASE_URL: optional(z.url()),
   ERP_API_KEY: optional(z.string()),
+  // The Buntalk business (tenant) ID in the ERP. The ERP is multi-tenant.
+  ERP_TENANT: optional(z.string().regex(/^[A-Za-z0-9_-]+$/, "letters, numbers, - and _ only")),
+  // Per-request time limit in milliseconds (default 8000).
+  ERP_TIMEOUT_MS: optional(z.coerce.number().int().min(1000).max(60_000)),
   // Shared secret the ERP sends when it calls /api/revalidate
   REVALIDATE_SECRET: optional(z.string().min(16)),
 });
@@ -39,11 +44,22 @@ export function serverEnv(): ServerEnv {
   return cached;
 }
 
-/** ERP connection settings, or null when the ERP is not configured. */
-export function erpConfig(): { baseUrl: string; apiKey: string } | null {
-  const { ERP_API_BASE_URL, ERP_API_KEY } = serverEnv();
-  if (!ERP_API_BASE_URL || !ERP_API_KEY) return null;
-  return { baseUrl: ERP_API_BASE_URL, apiKey: ERP_API_KEY };
+export type ErpConfig = { baseUrl: string; apiKey: string; tenant: string; timeoutMs: number };
+
+/**
+ * ERP connection settings, or null when the ERP is not configured.
+ * Only lib/erp may call this (enforced by ESLint), so ERP credentials stay in
+ * one server-only module and never reach the browser.
+ */
+export function erpConfig(): ErpConfig | null {
+  const { ERP_API_BASE_URL, ERP_API_KEY, ERP_TENANT, ERP_TIMEOUT_MS } = serverEnv();
+  if (!ERP_API_BASE_URL || !ERP_API_KEY || !ERP_TENANT) return null;
+  return {
+    baseUrl: ERP_API_BASE_URL.replace(/\/$/, ""),
+    apiKey: ERP_API_KEY,
+    tenant: ERP_TENANT,
+    timeoutMs: ERP_TIMEOUT_MS ?? 8000,
+  };
 }
 
 /**
