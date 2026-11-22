@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DetailTemplate } from "@/components/layout/templates";
 import { AddToCartButton } from "@/features/cart";
-import { ProductImage } from "@/features/catalog";
+import { Price, ProductImage } from "@/features/catalog";
 import { getCategory, getFeaturedProducts, getProduct } from "@/lib/erp";
-import { formatPrice } from "@/lib/utils";
 
 // Product: detail template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
 
@@ -49,9 +48,12 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
       summary={
         <>
           <h1 className="text-h1 break-words">{product.name}</h1>
-          <p className="font-display text-h2 text-primary font-bold">
-            {formatPrice(product.price, product.currency)}
-          </p>
+          <Price
+            price={product.price}
+            compareAtPrice={product.compareAtPrice}
+            currency={product.currency}
+            size="lg"
+          />
           <p className="text-muted-foreground">{product.description}</p>
           <AddToCartButton
             item={{ sku: product.slug, name: product.name, unitPrice: product.price }}

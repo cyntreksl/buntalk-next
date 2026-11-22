@@ -2,13 +2,16 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { isSampleCatalogEnabled } from "@/lib/env.server";
 import { cacheTags } from "@/lib/cache-tags";
+import { isOnOffer } from "@/lib/pricing";
 import { erpFetch, ErpError } from "./client";
-import { sampleCategories, sampleProducts } from "./sample-catalog";
+import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
 
 export type Category = {
   slug: string;
   name: string;
   description: string;
+  /** Absolute image URL from the ERP. Optional: a branded tile is shown without it. */
+  imageUrl?: string;
 };
 
 export type Product = {
@@ -16,9 +19,25 @@ export type Product = {
   name: string;
   description: string;
   price: number;
+  /** Original price when the product is on offer (higher than `price`). TODO(BUN-174): ERP scheme prices. */
+  compareAtPrice?: number;
   currency: string;
   categorySlug: string;
   featured: boolean;
+};
+
+/** Home page promotional banner. Managed in the ERP. */
+export type Banner = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  ctaLabel: string;
+  /** Internal path ("/category/buns") or absolute URL. */
+  href: string;
+  /** Absolute image URL from the ERP. Optional: a branded background is shown without it. */
+  imageUrl?: string;
+  /** Short text for the image, read by screen readers. Required when imageUrl is set. */
+  imageAlt?: string;
 };
 
 /**
@@ -81,6 +100,26 @@ export async function getFeaturedProducts(): Promise<Product[]> {
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter((p) => p.featured);
   return erpFetch<Product[]>("catalog/products?featured=true");
+}
+
+/** Home page banners, in display order (the first is the hero). */
+export async function getHomeBanners(): Promise<Banner[]> {
+  "use cache";
+  cacheLife("catalog");
+  cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.banners);
+
+  if (isSampleCatalogEnabled()) return sampleBanners;
+  return erpFetch<Banner[]>("content/banners?placement=home");
+}
+
+/** Products currently on offer. TODO(BUN-163/BUN-174): ERP scheme engine. */
+export async function getOfferProducts(): Promise<Product[]> {
+  "use cache";
+  cacheLife("catalog");
+  cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.products);
+
+  if (isSampleCatalogEnabled()) return sampleProducts.filter(isOnOffer);
+  return erpFetch<Product[]>("catalog/products?on_offer=true");
 }
 
 export async function searchProducts(query: string): Promise<Product[]> {

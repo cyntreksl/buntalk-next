@@ -470,3 +470,34 @@ The values were checked against the old site (buntalk.lk) on 22 Nov 2026:
 - Paths and titles are defined once, in `lib/content-pages.ts`.
 - The old addresses redirect permanently (308), so existing links and search rankings carry over when the domain moves to this site.
 - **Policy, about and help text is still needed.** The old site's versions were template text, with unfilled placeholders such as "[insert email address]" and a "we do not ship outside the U.S." line, so they weren't copied. Until real text arrives, these pages show a "This page is being updated" notice.
+
+## Home page
+
+`app/(site)/(catalog)/page.tsx` uses the full-width template. Sections live in `features/home/`.
+
+| Section                     | Data                                                                                                                                            | Shown when                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Hero + promos               | `getHomeBanners()`: first banner is the hero, next two are promo cards                                                                          | Always (branded welcome hero if there are no banners) |
+| Shop by category            | `getCategories()`                                                                                                                               | There are categories                                  |
+| Current offers              | `getOfferProducts()`: products with `compareAtPrice` above `price`                                                                              | There are offers                                      |
+| Featured                    | `getFeaturedProducts()`                                                                                                                         | There are featured products                           |
+| Cake Studio                 | Static call to action, linking to `/cake-studio` (placeholder until BUN-179 to BUN-183)                                                         | Always                                                |
+| Delivery, outlets, payments | `lib/site-config.ts` (`deliveryAreas`, `outlets`, `paymentMethods`). States only configured facts; otherwise links to the policy or outlet page | Always                                                |
+| Newsletter                  | Sign-up slot (disabled until a mailing-list service is connected)                                                                               | Always. The footer hides its own copy on this page    |
+
+### Live data and speed
+
+- **Live data:** every section reads through the cached ERP functions in `lib/erp`. Nothing is hard-coded.
+- **Static page:** the page is prerendered to static HTML and refreshed every 15 minutes. A `POST /api/revalidate` with `{ "type": "home" }` refreshes banners and featured content right away.
+- **No auto-rotating carousel:** it slows mobile pages, moves content while people read, and is hard to use with a keyboard or screen reader.
+- **Image priority:** only the hero image is loaded with priority.
+- **Measured locally, production build:** HTML is 14 KB gzipped and served from cache. JavaScript is about 206 KB gzipped, of which about 157 KB is React and the Next.js runtime. There's one `<h1>` and no duplicate IDs. No layout overflows at 360, 768 or 1280px.
+- **Not run:** a Lighthouse audit, which was blocked in this environment. Run it in Chrome DevTools, or use `npx lighthouse http://localhost:3000 --form-factor=mobile`.
+
+### ERP data still to connect (BUN-159)
+
+These endpoints are placeholders in `lib/erp/catalog.ts`:
+
+- Banners: `content/banners?placement=home`
+- Offers: `catalog/products?on_offer=true`. Real offer prices come from the scheme engine (BUN-163, BUN-174).
+- Banner and category images: add the ERP image host to `images.remotePatterns` in `next.config.ts`, then remove `unoptimized` from the banner and category `<Image>`s to get resized, modern-format images.
