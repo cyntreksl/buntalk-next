@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
-import { getCategories } from "@/lib/erp";
+import { getNavigationCategories } from "@/lib/erp";
 import { AccountMenu } from "./AccountMenu";
 import { CartButton } from "./CartButton";
 import { HeaderSearch } from "./HeaderSearch";
@@ -25,7 +25,7 @@ import { StickyHeader } from "./StickyHeader";
  * Heights match --header-height in styles/globals.css (64px; 112px from lg).
  */
 export async function SiteHeader() {
-  const categories = await getCategories();
+  const categories = await getNavigationCategories();
   const languageSwitcher = <LanguageSwitcher />;
 
   return (

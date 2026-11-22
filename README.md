@@ -501,3 +501,49 @@ These endpoints are placeholders in `lib/erp/catalog.ts`:
 - Banners: `content/banners?placement=home`
 - Offers: `catalog/products?on_offer=true`. Real offer prices come from the scheme engine (BUN-163, BUN-174).
 - Banner and category images: add the ERP image host to `images.remotePatterns` in `next.config.ts`, then remove `unoptimized` from the banner and category `<Image>`s to get resized, modern-format images.
+
+## Errors, 404 and empty states
+
+### 404: page not found
+
+- Unknown URLs and `notFound()` (a product or category that doesn't exist) return **HTTP 404** with a custom page. It has a search box, popular categories and a link home, and is marked `noindex`.
+- There are two `not-found.tsx` files:
+  - `app/not-found.tsx` is for URLs that match no route. It adds the site header and footer itself.
+  - `app/(site)/not-found.tsx` is for `notFound()` inside storefront pages, which already have the header and footer.
+  - Both use `features/content/NotFoundContent.tsx`.
+
+### Errors: 500 and ERP unavailable
+
+| Where it fails                         | What shows                                     | File                       |
+| -------------------------------------- | ---------------------------------------------- | -------------------------- |
+| A storefront page                      | Error screen inside the site header and footer | `app/(site)/error.tsx`     |
+| Checkout                               | Error screen inside the checkout header        | `app/(checkout)/error.tsx` |
+| A layout (e.g. the site header itself) | Error screen with a minimal logo header        | `app/error.tsx`            |
+| The root layout                        | Standalone error page                          | `app/global-error.tsx`     |
+
+All four use `components/feedback/ErrorContent.tsx`:
+
+- It shows "Sorry, something went wrong", says the problem is usually temporary, and offers **Try again** (re-renders the page), **Go to the home page** and **Contact us**.
+- It never shows technical details. It shows a **reference code** (the error digest) that matches the server log entry.
+
+**ERP downtime** is handled at several levels:
+
+- **Fail fast:** `erpFetch` gives up after 10 seconds. Network errors, timeouts and 5xx responses become an `ErpUnavailableError`.
+- **Cached pages keep working:** pages that were already built (cached) stay up. Next.js keeps serving the last good version if a background refresh fails.
+- **Navigation degrades:** the header and footer use `getNavigationCategories()`, which never throws. During an outage they render without category links instead of breaking the page. The error is caught outside the cached read, so the outage isn't cached.
+- **Fresh pages show the error screen:** pages that need fresh ERP data show the friendly error screen. Uncached pages return HTTP 500. Search returns 200 because its results stream in after the page starts; search is `noindex`.
+
+Tested by running the production build with `ERP_API_BASE_URL` pointing at a closed port.
+
+### Empty states
+
+`EmptyState` (`components/ui`) always says what happened and offers a next step.
+
+| Where                     | Message                     | Next step                                                    |
+| ------------------------- | --------------------------- | ------------------------------------------------------------ |
+| Cart                      | "Your cart is empty"        | Start shopping, plus category links (checkout button hidden) |
+| Checkout order summary    | "Nothing to check out yet"  | Continue shopping                                            |
+| Search with no results    | "No results for …"          | Spelling tips and category links                             |
+| Search with no query      | "What are you looking for?" | Category links                                               |
+| Category with no products | "No products here yet"      | Search products                                              |
+| Account → Orders          | "No orders yet"             | Start shopping                                               |

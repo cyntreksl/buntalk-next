@@ -7,9 +7,10 @@ import "server-only";
  * error handling and caching rules live in one place. Typed endpoint
  * modules (products, prices, stock, orders) are added in BUN-159.
  */
-export { erpFetch, ErpError } from "./client";
+export { erpFetch, ErpError, ErpUnavailableError } from "./client";
 export {
   getCategories,
+  getNavigationCategories,
   getCategory,
   getFeaturedProducts,
   getHomeBanners,

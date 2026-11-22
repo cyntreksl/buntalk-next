@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { Card, Skeleton } from "@/components/ui";
 import { formatPrice } from "@/lib/utils";
@@ -30,7 +31,14 @@ export function CartSummary() {
           <Skeleton className="h-5 w-2/3" />
         </div>
       ) : items.length === 0 ? (
-        <p className="text-muted-foreground">Your cart is empty.</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-muted-foreground">
+            Your cart is empty, so there&apos;s nothing to check out yet.
+          </p>
+          <Link href="/" className="text-body-sm text-primary font-bold underline">
+            Continue shopping
+          </Link>
+        </div>
       ) : (
         <>
           <ul className="text-body-sm flex flex-col gap-2">

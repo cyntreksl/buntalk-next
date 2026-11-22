@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Badge, Card, CardTitle, ProductCardSkeleton } from "@/components/ui";
 import type { Product } from "@/lib/erp";
 import { cx } from "@/lib/utils";
@@ -44,9 +45,18 @@ export function ProductCard({ product }: { product: Product }) {
 
 const gridClasses = "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4";
 
-export function ProductGrid({ products, className }: { products: Product[]; className?: string }) {
+export function ProductGrid({
+  products,
+  className,
+  empty,
+}: {
+  products: Product[];
+  className?: string;
+  /** Shown instead of the grid when there are no products. */
+  empty?: ReactNode;
+}) {
   if (products.length === 0) {
-    return <p className="text-muted-foreground">No products found.</p>;
+    return empty ?? <p className="text-muted-foreground">No products found.</p>;
   }
   return (
     <ul className={cx(gridClasses, className)}>

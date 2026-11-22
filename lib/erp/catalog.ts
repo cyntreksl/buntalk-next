@@ -65,6 +65,23 @@ export async function getCategories(): Promise<Category[]> {
   return erpFetch<Category[]>("catalog/categories");
 }
 
+/**
+ * Categories for the header and footer navigation. Unlike getCategories(),
+ * this never throws: if the ERP is down, the header and footer render without
+ * category links instead of taking the whole page down with them.
+ *
+ * The error is caught outside the cached read, so an outage isn't cached as an
+ * empty list — the next request tries the ERP again.
+ */
+export async function getNavigationCategories(): Promise<Category[]> {
+  try {
+    return await getCategories();
+  } catch (error) {
+    console.error("[nav] Could not load categories; showing navigation without them.", error);
+    return [];
+  }
+}
+
 export async function getCategory(slug: string): Promise<Category | null> {
   "use cache";
   cacheLife("catalog");

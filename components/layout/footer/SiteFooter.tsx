@@ -3,7 +3,7 @@ import { Logo } from "@/components/brand/Logo";
 import { brand } from "@/lib/brand";
 import { contentPages, policyPageIds } from "@/lib/content-pages";
 import { getCopyrightYears } from "@/lib/copyright";
-import { getCategories } from "@/lib/erp";
+import { getNavigationCategories } from "@/lib/erp";
 import { siteConfig } from "@/lib/site-config";
 import { FooterContact } from "./FooterContact";
 import { FooterLinkGroups, type FooterLinkGroup } from "./FooterLinkGroups";
@@ -22,7 +22,7 @@ import { PaymentMethods } from "./PaymentMethods";
  * lib/site-config.ts; page links from lib/content-pages.ts.
  */
 export async function SiteFooter() {
-  const [categories, years] = await Promise.all([getCategories(), getCopyrightYears()]);
+  const [categories, years] = await Promise.all([getNavigationCategories(), getCopyrightYears()]);
   const page = (id: keyof typeof contentPages) => ({
     label: contentPages[id].title,
     href: contentPages[id].href,
