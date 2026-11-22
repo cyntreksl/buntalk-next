@@ -53,6 +53,10 @@ export type Product = {
   currency: string;
   categorySlug: string;
   featured: boolean;
+  /** Higher = more popular (from the ERP's sales). Undefined until the ERP sends it. */
+  popularity?: number;
+  /** When the product was first published (ISO). Undefined until the ERP sends it. */
+  createdAt?: string;
   /** ERP product code (shown as "Item code"). */
   code?: string;
   /** Photos, main one first. Empty or missing = show the placeholder image. */

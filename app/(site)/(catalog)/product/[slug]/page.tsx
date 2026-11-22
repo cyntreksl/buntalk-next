@@ -14,6 +14,10 @@ import { getCategories, getFeaturedProducts, getProduct } from "@/lib/erp";
 // Links to products use prefetch={true}, so navigations are still fast.
 export const instant = false;
 
+// Same for every visitor: the complete page must be prerendered (stricter than
+// the catalog layout's 'prefetch'). See app/(site)/(catalog)/layout.tsx.
+export const ensureStatic = "navigation";
+
 /**
  * Prerender only the featured products at build time, to keep builds fast.
  * Every other product is built on its first visit and then served from the cache.

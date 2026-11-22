@@ -16,6 +16,10 @@ import {
   getProductsByCategory,
 } from "@/lib/erp";
 
+// Same for every visitor: the complete page must be prerendered (stricter than
+// the catalog layout's 'prefetch'). See app/(site)/(catalog)/layout.tsx.
+export const ensureStatic = "navigation";
+
 /** How many top-level categories get their own product row on the home page. */
 const CATEGORY_ROWS = 2;
 

@@ -373,7 +373,8 @@ Live examples, with code for each component: **[/style-guide/components](http://
 - **Native HTML first.** Native elements give keyboard and screen-reader support for free:
   - `Dialog` and `Drawer` use `<dialog>`: focus stays inside, Esc and clicking outside close it, and focus returns to the opener.
   - `Accordion` uses `<details>`, so it works without JavaScript.
-  - `Select`, `Checkbox` and `Radio` use the native inputs, so they work with phone pickers.
+  - `Checkbox` and `Radio` use the native inputs.
+- **Branded dropdown.** `Select` draws its own list instead of the browser's default one. Pass `options={[{ value, label, disabled? }]}`; with `name`, the value is sent with the form through a hidden input. It follows the WAI-ARIA select-only combobox pattern, so it works like a native select: arrow keys, Home/End, Enter/Space, Escape, Tab and type-to-select, with focus kept on the button. It opens upwards when there's no room below. The "Sort by" control on listings uses it, with a native select inside `<noscript>` as the no-JavaScript fallback.
 - **Keyboard:**
   - Every control shows a visible focus outline.
   - `Tabs` use the arrow keys and Home/End, and skip disabled tabs.
@@ -797,6 +798,23 @@ The ERP is the single source of truth for categories and products. The storefron
 - **Sub-categories** (`SubcategoryLinks`): chips for the category's sub-categories in ERP order. A category without sub-categories shows its sister categories instead ("More in Cakes").
 - **Sidebar:** the full category tree, with the current category highlighted. On phones it's in a "Categories" drawer.
 - **All categories** (`/categories`): every top-level category with its sub-categories, in ERP order. It's linked from the mega-menu ("View all categories"), the home page ("View all") and the breadcrumb.
+
+### Sorting and pagination (BUN-169)
+
+- **One listing for everything:** category pages and search results use the same server component, `features/catalog/ProductListing.tsx`.
+  - It shows a product count ("Showing 25–48 of 57 products"), a "Sort by" control, the grid and page links.
+  - The grid is 2 columns on phones, 3 on tablets and 4 on desktop, with 24 products per page.
+- **In the URL:** `?sort=` and `?page=`, for example `/category/buns?sort=price-asc&page=2`. Every view is shareable and Back/Forward safe.
+  - The page links are real links, so search engines can follow them.
+  - An unknown sort falls back to Recommended, and a page past the end is a 404.
+- **Sorts** (`lib/listing.ts`):
+  - **Recommended** (featured first, then the ERP's order) and price low-to-high / high-to-low (the price on the card, the lowest size price) are always available.
+  - **Most popular** and **Newest** appear once the ERP sends `popularity` and `created_at` (BUN-256).
+  - Ties keep the ERP's order.
+- **Sort control:** a GET form (Next's `<Form>`). Choosing an option navigates to the new URL, and without JavaScript an "Apply" button does the same.
+- **Rendering:**
+  - The catalog layout requires the shell and prefetch to be static (`ensureStatic = 'prefetch'`). Home, all-categories and product pages require the complete page (`'navigation'`).
+  - On category pages the header, banner and sidebar are prerendered. The product grid depends on the URL, so it renders per request from the cached ERP read, inside `<Suspense>` with a skeleton, and is streamed into the same server-rendered response.
 
 ### Products
 

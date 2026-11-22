@@ -11,6 +11,10 @@ import { getCategories } from "@/lib/erp";
 // its sub-categories under it, all in the ERP's order. Static + ISR ("catalog"
 // profile); refreshed with the catalog when the ERP changes a category.
 
+// Same for every visitor: the complete page must be prerendered (stricter than
+// the catalog layout's 'prefetch'). See app/(site)/(catalog)/layout.tsx.
+export const ensureStatic = "navigation";
+
 export const metadata: Metadata = {
   title: "All categories",
   description: "Browse every Buntalk category: buns, cakes, short eats and more.",
