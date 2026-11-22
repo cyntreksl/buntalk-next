@@ -644,6 +644,27 @@ These ERP fields map to storefront fields:
 
 A product with no image, an invalid image URL, or an image that fails to load shows a branded placeholder (the product's first letter) in the same square frame, so the page never breaks or jumps.
 
+### Product visibility
+
+Only products the business shows online appear on the storefront. The rules live in one place, `lib/erp/visibility.ts`:
+
+- **Category:** shown when it is active, its "Show on the website" switch (`visible_online`) isn't off, and none of its parents are hidden.
+- **Product:** shown when it is active, its switch isn't off, and its category is shown. Hiding a category hides everything in it.
+- **SKU (size/variant):** hidden when inactive or switched off.
+
+Until the ERP adds `visible_online` (contract question 7), `is_active` alone decides.
+
+Where it applies:
+
+- Every catalog read filters with these rules: category pages, the menus, home page sections, search and offers. The sitemap (BUN-221) will use the same reads.
+- A hidden product's or category's URL is a **404**, the same as one that doesn't exist.
+- **Cart:** nothing goes into the cart without a server check.
+  - `POST /api/cart/items` asks the ERP **live** (no cache) and refuses a hidden product with a 404, even when called directly. The name and price stored in the cart come from that answer.
+  - The cart page calls `POST /api/cart/validate` when it opens. It drops products hidden since they were added, shows a notice, and refreshes names and prices.
+  - Checkout will run the same check (`lib/cart.server.ts`).
+
+When something is hidden in the ERP, the ERP calls the revalidate webhook for that product or category. Product lists carry the `categories` tag too, so hiding a category also refreshes them.
+
 ### Updates from the ERP
 
 - **On a timer:** catalog pages refresh every 15 minutes.
@@ -657,7 +678,7 @@ A product with no image, an invalid image URL, or an image that fails to load sh
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image and a broken image.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image and a broken image. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 

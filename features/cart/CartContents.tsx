@@ -1,8 +1,9 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Button, Card, QuantityStepper, Skeleton } from "@/components/ui";
 import { formatPrice } from "@/lib/utils";
+import { validateCart } from "./api";
 import { useCartStore } from "./store";
 
 // The cart is read from localStorage, which only exists in the browser.
@@ -26,6 +27,7 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
   const items = useCartStore((state) => state.items);
   const setQuantity = useCartStore((state) => state.setQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
+  const removedNames = useCartCheck(isClient);
 
   if (!isClient) {
     return (
@@ -36,8 +38,23 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
       </div>
     );
   }
+  const notice = removedNames.length > 0 && (
+    <p
+      role="status"
+      className="bg-warning-soft text-warning text-body-sm rounded-md px-4 py-3 font-semibold"
+    >
+      {removedNames.join(", ")} {removedNames.length === 1 ? "is" : "are"} no longer available
+      online and {removedNames.length === 1 ? "was" : "were"} removed from your cart.
+    </p>
+  );
+
   if (items.length === 0) {
-    return empty ?? <p className="text-muted-foreground">Your cart is empty.</p>;
+    return (
+      <>
+        {notice}
+        {empty ?? <p className="text-muted-foreground">Your cart is empty.</p>}
+      </>
+    );
   }
 
   // Display total only. The real total is recalculated from the ERP at checkout.
@@ -46,6 +63,7 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
 
   return (
     <div className="flex flex-col gap-4">
+      {notice}
       <ul className="flex flex-col gap-3">
         {items.map((item) => (
           <li key={item.sku}>
@@ -83,4 +101,44 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
       {footer}
     </div>
   );
+}
+
+/**
+ * Re-checks the cart with the ERP once, when the cart opens: products hidden
+ * in the ERP since they were added are dropped, and names and prices are
+ * refreshed. Returns the names of the dropped products, for the notice.
+ * If the check can't run (offline, ERP down), the cart is left as it is;
+ * checkout checks again anyway.
+ */
+function useCartCheck(enabled: boolean): string[] {
+  const [removedNames, setRemovedNames] = useState<string[]>([]);
+  const checked = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || checked.current) return;
+    checked.current = true;
+    const { items, replaceItems } = useCartStore.getState();
+    if (items.length === 0) return;
+
+    void validateCart(items).then((result) => {
+      if (!result) return;
+      const removed = new Set(result.removed.map((r) => r.sku));
+      // Keep quantity changes the visitor made while the check was running.
+      const current = useCartStore.getState().items;
+      const fresh = new Map(result.items.map((i) => [i.sku, i]));
+      replaceItems(
+        current
+          .filter((i) => !removed.has(i.sku))
+          .map((i) => {
+            const checkedItem = fresh.get(i.sku);
+            return checkedItem
+              ? { ...i, name: checkedItem.name, unitPrice: checkedItem.unitPrice }
+              : i;
+          }),
+      );
+      setRemovedNames(items.filter((i) => removed.has(i.sku)).map((i) => i.name));
+    });
+  }, [enabled]);
+
+  return removedNames;
 }

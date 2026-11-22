@@ -51,6 +51,11 @@ export const erpCategorySchema = z.object({
   /** NEW: display order set in the ERP (lower first). The storefront never re-sorts. */
   sort_order: z.number().int().optional(),
   is_active: z.boolean(),
+  /**
+   * NEW: "Show on the website" switch in the ERP. Missing means visible, so the
+   * storefront works before the ERP adds the field; `is_active: false` always hides.
+   */
+  visible_online: z.boolean().optional(),
 });
 
 export const erpSkuOptionSchema = z.object({
@@ -66,6 +71,8 @@ export const erpSkuSchema = z.object({
   options: z.array(erpSkuOptionSchema).default([]),
   base_quantity: money,
   is_active: z.boolean(),
+  /** NEW: a single size/variant can be hidden online on its own. Missing means visible. */
+  visible_online: z.boolean().optional(),
   /** NEW: whether this SKU can be ordered online now. */
   in_stock: z.boolean().optional(),
   price: erpPriceSchema,
@@ -91,6 +98,11 @@ export const erpProductSchema = z.object({
   /** NEW: how long the bakery needs to prepare it, in hours (shown as "Ready in …"). */
   processing_time_hours: z.number().nonnegative().nullable().optional(),
   is_active: z.boolean(),
+  /**
+   * NEW: "Show on the website" switch in the ERP. Missing means visible, so the
+   * storefront works before the ERP adds the field; `is_active: false` always hides.
+   */
+  visible_online: z.boolean().optional(),
   is_customisable: z.boolean().default(false),
   allows_fractional: z.boolean().default(false),
   /** NEW: shown in "Featured" on the home page. */
