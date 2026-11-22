@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DetailTemplate } from "@/components/layout/templates";
 import { ProductPurchase } from "@/features/cart";
-import { OfferList, ProductImage } from "@/features/catalog";
+import { OfferList, ProductImage, ProductRail } from "@/features/catalog";
 import { categoryTrail } from "@/lib/categories";
-import { getCategories, getFeaturedProducts, getProduct } from "@/lib/erp";
+import { getCategories, getFeaturedProducts, getProduct, getProductsByCategory } from "@/lib/erp";
 
 // Product: detail template. Static + ISR, "catalog" cache profile (refreshes every 15 min) — see README.
 
@@ -22,6 +22,9 @@ export const ensureStatic = "navigation";
  * Prerender only the featured products at build time, to keep builds fast.
  * Every other product is built on its first visit and then served from the cache.
  */
+/** How many products "You may also like" shows (one row of five on desktop, more to swipe on phones). */
+const RELATED_COUNT = 10;
+
 export async function generateStaticParams() {
   const products = await getFeaturedProducts();
   return products.map((product) => ({ slug: product.slug }));
@@ -43,6 +46,10 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
   // Category and its parents, for the breadcrumb (Home › Cakes › Birthday cakes › …).
   const trail = categoryTrail(await getCategories(), product.categorySlug);
   const category = trail.at(-1);
+  // "You may also like": other products in the same category (cached read), in ERP order.
+  const related = (await getProductsByCategory(product.categorySlug))
+    .filter((p) => p.slug !== product.slug)
+    .slice(0, RELATED_COUNT);
   const readyIn = product.processingTimeHours
     ? formatProcessingTime(product.processingTimeHours)
     : null;
@@ -76,22 +83,32 @@ export default async function ProductPage({ params }: PageProps<"/product/[slug]
         </>
       }
     >
-      <section aria-labelledby="product-details" className="flex max-w-prose flex-col gap-4">
-        <h2 id="product-details" className="text-h3">
-          Product details
-        </h2>
-        {product.description && <p>{product.description}</p>}
-        {details.length > 0 && (
-          <dl className="border-border divide-border divide-y border-y">
-            {details.map((d) => (
-              <div key={d.label} className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-2.5">
-                <dt className="text-body-sm text-muted-foreground font-bold">{d.label}</dt>
-                <dd className="text-body-sm break-words">{d.value}</dd>
-              </div>
-            ))}
-          </dl>
+      <div className="flex flex-col gap-10 md:gap-14">
+        <section aria-labelledby="product-details" className="flex max-w-prose flex-col gap-4">
+          <h2 id="product-details" className="text-h3">
+            Product details
+          </h2>
+          {product.description && <p>{product.description}</p>}
+          {details.length > 0 && (
+            <dl className="border-border divide-border divide-y border-y">
+              {details.map((d) => (
+                <div key={d.label} className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-2.5">
+                  <dt className="text-body-sm text-muted-foreground font-bold">{d.label}</dt>
+                  <dd className="text-body-sm break-words">{d.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+        {related.length > 0 && (
+          <section aria-labelledby="related-products" className="flex flex-col gap-4">
+            <h2 id="related-products" className="text-h3">
+              You may also like
+            </h2>
+            <ProductRail products={related} />
+          </section>
         )}
-      </section>
+      </div>
     </DetailTemplate>
   );
 }

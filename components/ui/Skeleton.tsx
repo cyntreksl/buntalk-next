@@ -20,9 +20,12 @@ export function Skeleton({ className }: { className?: string }) {
 /** Ready-made skeleton for a product card. */
 export function ProductCardSkeleton() {
   return (
-    <div className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-4">
-      <Skeleton className="h-5 w-3/4" />
-      <Skeleton className="h-4 w-1/3" />
+    // Same shape as the product card: square photo, name, price, button.
+    <div className="flex flex-col gap-2">
+      <Skeleton className="aspect-square w-full rounded-xl" />
+      <Skeleton className="mt-1 h-4 w-3/4" />
+      <Skeleton className="h-5 w-1/3" />
+      <Skeleton className="mt-1 h-9 w-full rounded-full" />
     </div>
   );
 }

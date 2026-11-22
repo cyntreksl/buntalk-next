@@ -829,6 +829,26 @@ These ERP fields map to storefront fields:
 | category                       | `categorySlug`                                    |
 | `processing_time_hours`        | `processingTimeHours`, shown as "Ready in 2 days" |
 | SKUs and prices                | `skus`, `price`                                   |
+| `is_customisable`              | `customizable` (Cake Studio product)              |
+
+### Product card (BUN-170)
+
+`ProductCard` (`features/catalog/ProductCard.tsx`) is the one card for products everywhere: category and search listings, home page rows, and "You may also like" on the product page (other products from the same category). It shows:
+
+- the photo, with badges on it:
+  - "Save 20%" and the offers ("Buy 2 get 1 free"), **only while an ERP scheme applies** to the product (see Offers below);
+  - "Customizable" for Cake Studio products (ERP `is_customisable`).
+- the name (two lines at most) and the price, with the original price crossed out when discounted, or "From …" when sizes are priced differently.
+- one button (`ProductCardAction`):
+
+| Product              | Button                                          |
+| -------------------- | ----------------------------------------------- |
+| Cake Studio product  | "Customize", opens Cake Studio for that product |
+| Every size sold out  | "Sold out" (disabled)                           |
+| Several sizes        | "Choose size", opens the product page           |
+| One size or no sizes | "Add to cart", adds 1 straight away             |
+
+The quick "Add to cart" goes through the same server check as the product page (`useAddToCart` in `features/cart`): the ERP confirms the product and price, then a toast confirms it. The whole card links to the product page; the button sits above that link, so clicking it doesn't open the page.
 
 ### Missing images
 
@@ -878,6 +898,7 @@ Discounts and promotions come from the ERP scheme engine. The storefront shows t
 - **Badges:**
   - Product cards and product pages show the offers that apply to the product, for example "Buy 2 get 1 free" or "10% off". These are schemes on the product, or on its category or a parent category (`lib/offers.ts`).
   - Whole-order offers, such as "LKR 500 off orders over LKR 10,000", aren't product badges.
+  - A crossed-out price and "Save X%" are only shown while a scheme applies to the product (BUN-170). If the ERP sends a `compare_at_price` but no current scheme covers the product, the storefront ignores it and shows a plain price (`withSchemeBackedDiscounts()` in `lib/offers.ts`).
   - Customer-only schemes are never advertised.
 - **Dates:**
   - `getActiveSchemes()` leaves out inactive and ended schemes. It is cached briefly (the `schemes` profile: refreshed every 5 minutes).
@@ -890,7 +911,7 @@ Discounts and promotions come from the ERP scheme engine. The storefront shows t
   - The same evaluation applies to the order, so the cart matches what the customer is charged. An expired or inactive scheme is never applied.
 - **Changes:** when a scheme is added, changed or ended, the ERP calls the revalidate webhook with `{"type":"schemes"}`. That refreshes the badges on every page.
 
-The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock ERP has a small stand-in engine with test schemes: a buy-2-get-1 offer, a 10% cake week, LKR 500 off over LKR 10,000, and ones that must never apply (expired, inactive, future, customer-only).
+The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock ERP has a small stand-in engine with test schemes: a buy-2-get-1 offer, a sausage bun special price (backs its crossed-out price), a 10% cake week, LKR 500 off over LKR 10,000, and ones that must never apply (expired, inactive, future, customer-only).
 
 ### Updates from the ERP
 
@@ -906,7 +927,7 @@ The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock 
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 

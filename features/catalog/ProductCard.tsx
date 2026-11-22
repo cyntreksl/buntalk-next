@@ -6,12 +6,17 @@ import { listingPrice } from "@/lib/pricing";
 import { cx } from "@/lib/utils";
 import { OfferBadges } from "./OfferBadges";
 import { Price, savingsLabel } from "./Price";
+import { ProductCardAction } from "./ProductCardAction";
 import { ProductImage } from "./ProductImage";
 
 /**
- * Product card (marketplace style): photo in a soft rounded well with offer
- * badges, then a two-line name and the price. No border or shadow; the whole
- * card is one click target.
+ * Product card (marketplace style, BUN-170), used in listings, search, home
+ * rows and "You may also like":
+ * - photo in a soft rounded well, with "Save X%" and offer badges while an
+ *   ERP scheme applies, and "Customizable" for Cake Studio products;
+ * - two-line name, price (original price crossed out when discounted);
+ * - a quick action: "Add to cart", "Choose size" or "Customize".
+ * No border or shadow; the whole card links to the product page, except the button.
  */
 export function ProductCard({ product, className }: { product: Product; className?: string }) {
   // Lowest size price ("From …") when sizes are priced differently. All prices are the ERP's.
@@ -24,9 +29,9 @@ export function ProductCard({ product, className }: { product: Product; classNam
           <ProductImage product={product} variant="card" />
         </div>
         <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-          {savings && <Badge tone="brand">{savings}</Badge>}
-          {/* ERP scheme offers ("Buy 2 get 1 free"), hidden outside their dates. */}
-          <OfferBadges offers={product.offers} />
+          {/* "Save X%" and ERP scheme offers ("Buy 2 get 1 free"), only while a scheme applies. */}
+          <OfferBadges offers={product.offers} savings={savings} />
+          {product.customizable && <Badge tone="info">Customizable</Badge>}
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-1 px-0.5">
@@ -48,6 +53,16 @@ export function ProductCard({ product, className }: { product: Product; classNam
           currency={product.currency}
           className="mt-auto"
         />
+        <div className="mt-1">
+          <ProductCardAction
+            product={{
+              slug: product.slug,
+              name: product.name,
+              skus: product.skus,
+              customizable: product.customizable,
+            }}
+          />
+        </div>
       </div>
     </li>
   );

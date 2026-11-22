@@ -63,6 +63,7 @@ export function toProduct(p: ErpProduct): Product {
     categorySlug: p.category.slug,
     categoryId: p.category.link_id,
     featured: p.is_featured,
+    customizable: p.is_customisable,
     popularity: orUndefined(p.popularity),
     createdAt: orUndefined(p.created_at),
     code: p.code,

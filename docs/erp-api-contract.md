@@ -102,7 +102,7 @@ tables today.
 | `gallery_urls`                                      | url[]                     | **NEW**. Extra photos                                                                                                      |
 | `attributes`                                        | `{ name, values[] }[]`    | The product option types and values (`end_product_option_types`, `product_option_values`)                                  |
 | `processing_time_hours`                             | number, null              | **NEW** (BUN-160). Preparation time shown as "Ready in …". `production_schedule` (days made) is not the same thing         |
-| `is_active`, `is_customisable`, `allows_fractional` | boolean                   |                                                                                                                            |
+| `is_active`, `is_customisable`, `allows_fractional` | boolean                   | `is_customisable`: Cake Studio product; the card shows "Customize" instead of "Add to cart" (BUN-170)                      |
 | `visible_online`                                    | boolean                   | **NEW** (BUN-161). "Show on the website". Missing = visible. `is_active: false` always hides                               |
 | `is_featured`                                       | boolean                   | **NEW**. Home page "Featured"                                                                                              |
 | `popularity`                                        | number, null              | **NEW** (BUN-169, ticket BUN-256). Recent sales (e.g. units sold in the last 30 days); powers "Most popular"               |
@@ -124,13 +124,13 @@ tables today.
 
 ### Price (`ProductPriceVersion` values)
 
-| Field              | Type                 | Notes                                                        |
-| ------------------ | -------------------- | ------------------------------------------------------------ |
-| `currency`         | string (3)           | Tenant `currency_code`                                       |
-| `selling_price`    | decimal string       | What the customer pays, with schemes applied                 |
-| `printed_price`    | decimal string, null | Price printed on the pack (MRP)                              |
-| `compare_at_price` | decimal string, null | **NEW**. Price before a scheme lowered it; shown crossed out |
-| `tax_mode`         | string, null         |                                                              |
+| Field              | Type                 | Notes                                                                                                   |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `currency`         | string (3)           | Tenant `currency_code`                                                                                  |
+| `selling_price`    | decimal string       | What the customer pays, with schemes applied                                                            |
+| `printed_price`    | decimal string, null | Price printed on the pack (MRP)                                                                         |
+| `compare_at_price` | decimal string, null | **NEW**. Price before a scheme lowered it; shown crossed out only while that scheme is active (BUN-170) |
+| `tax_mode`         | string, null         |                                                                                                         |
 
 ### Banner (closest: `PosDisplaySlide`)
 

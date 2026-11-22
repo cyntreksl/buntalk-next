@@ -8,7 +8,7 @@ import { ErpNotFoundError } from "./errors";
 import { erpGet } from "./http";
 import { toBanner, toCategory, toProduct } from "./mappers";
 import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
-import { offersFor } from "@/lib/offers";
+import { offersFor, withSchemeBackedDiscounts } from "@/lib/offers";
 import {
   erpBannerSchema,
   erpCategorySchema,
@@ -63,10 +63,14 @@ async function visibleProducts(products: ErpProduct[]): Promise<Product[]> {
   const [categories, schemes] = await Promise.all([getErpCategories(), getActiveSchemes()]);
   const ids = visibleCategoryIds(categories);
   const tree = categories.map((c) => ({ id: c.link_id, parentId: c.parent_link_id ?? undefined }));
-  return products
-    .filter((p) => isProductVisible(p, ids))
-    .map(toProduct)
-    .map((p) => ({ ...p, offers: offersFor(p, schemes, tree) }));
+  return (
+    products
+      .filter((p) => isProductVisible(p, ids))
+      .map(toProduct)
+      .map((p) => ({ ...p, offers: offersFor(p, schemes, tree) }))
+      // A crossed-out price only while an ERP scheme applies (BUN-170).
+      .map((p) => withSchemeBackedDiscounts(p))
+  );
 }
 
 /**
