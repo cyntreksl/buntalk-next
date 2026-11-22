@@ -32,13 +32,15 @@ npm run dev                 # http://localhost:3000
 
 All variables are documented in [`.env.example`](.env.example). Copy it to `.env.local` for local work; staging and production values are set in the hosting/CI environment and are never committed.
 
-| Variable               | Scope  | Purpose                                       |
-| ---------------------- | ------ | --------------------------------------------- |
-| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`            |
-| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links) |
-| `ERP_API_BASE_URL`     | server | ERP API base URL                              |
-| `ERP_API_KEY`          | server | ERP API key, never exposed to the browser     |
-| `REVALIDATE_SECRET`    | server | Secret the ERP sends to `/api/revalidate`     |
+| Variable               | Scope  | Purpose                                                 |
+| ---------------------- | ------ | ------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`                      |
+| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links)           |
+| `ERP_API_BASE_URL`     | server | ERP API base URL                                        |
+| `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser |
+| `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                 |
+| `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)          |
+| `REVALIDATE_SECRET`    | server | Secret the ERP sends to `/api/revalidate`               |
 
 Env vars are validated with Zod:
 
@@ -74,7 +76,7 @@ features/         Feature modules, one folder per domain (cart, catalog, checkou
   cart/           Cart store (Zustand) and cart components
   catalog/        Product cards and grids
 lib/
-  erp/            ERP API client and cached catalog reads (server only)
+  erp/            ERP client layer (server only): see "ERP client" below
   auth/           Authentication and session handling
   utils/          Small shared helpers
   brand.ts        Brand name, tagline, logo paths, manifest colours
@@ -547,3 +549,64 @@ Tested by running the production build with `ERP_API_BASE_URL` pointing at a clo
 | Search with no query      | "What are you looking for?" | Category links                                               |
 | Category with no products | "No products here yet"      | Search products                                              |
 | Account → Orders          | "No orders yet"             | Start shopping                                               |
+
+## ERP client
+
+All communication with the BrandTalk ERP goes through **`lib/erp`**, server-side only. Features import typed functions and types from `@/lib/erp`:
+
+```ts
+import { getProduct, type Product, ErpNotFoundError } from "@/lib/erp";
+```
+
+| File                    | What it does                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `http.ts` (internal)    | The one HTTP client: base URL, tenant, API key, time limit, retries, logging, error mapping                                         |
+| `errors.ts`             | Storefront error types (below)                                                                                                      |
+| `schemas.ts` (internal) | zod shapes of ERP entities (product, category, SKU, price, scheme, customer, order, banner). Every response is checked against them |
+| `mappers.ts` (internal) | ERP shapes (`snake_case`, decimal strings) → storefront types                                                                       |
+| `types.ts`              | Storefront types used by pages and components                                                                                       |
+| `catalog.ts`            | Cached catalog reads (`'use cache'` and cache tags)                                                                                 |
+| `sample-catalog.ts`     | Sample data for local development without ERP credentials                                                                           |
+
+The API contract proposed to the ERP team (endpoints, auth, entities, open questions) is in **[docs/erp-api-contract.md](docs/erp-api-contract.md)**.
+
+### Rules, enforced by ESLint
+
+- **Only through `@/lib/erp`:** outside `lib/erp`, you can't import its internals (`@/lib/erp/http`, schemas, mappers).
+- **Settings stay in one place:** outside `lib/erp`, you can't import `erpConfig` or read `process.env.ERP_*`. ERP settings are read only in `lib/env.server.ts`, which is `server-only`.
+- **No direct ERP calls:** don't `fetch` the ERP directly. Without the credentials such a call can't authenticate anyway.
+
+### Behaviour
+
+- **URL and auth:** requests go to `{ERP_API_BASE_URL}/v1/tenants/{ERP_TENANT}/storefront/…` with `Authorization: Bearer ERP_API_KEY` and an `X-Request-Id`.
+- **Time limit:** `ERP_TIMEOUT_MS` per attempt, 8 s by default.
+- **Retries:** only for reads (GET), on network errors, timeouts, 429 and 5xx. Up to 2 retries with exponential back-off and jitter, honouring `Retry-After`. Writes are never retried automatically; they send an `Idempotency-Key` instead.
+- **Logging:** one line per request, e.g. `[erp] GET /products ok 84ms attempt=1 id=…`. Request bodies, query values and credentials are never logged.
+- **Credentials:** verified by building with a dummy `ERP_API_KEY` and checking the browser bundles. Neither the key value nor the variable name appears in them.
+
+### Error types
+
+| Error                 | When                                                  | Typical handling             |
+| --------------------- | ----------------------------------------------------- | ---------------------------- |
+| `ErpConfigError`      | ERP not configured, or credentials rejected (401/403) | Error page, alert the team   |
+| `ErpNotFoundError`    | 404                                                   | `notFound()` or `null`       |
+| `ErpValidationError`  | 422; `fieldErrors` has the ERP's messages per field   | Show on the form             |
+| `ErpConflictError`    | 409, e.g. stock changed                               | Show `userMessage`           |
+| `ErpUnavailableError` | Network error, timeout, 429, 5xx (after retries)      | Error page with Try again    |
+| `ErpResponseError`    | Response didn't match the agreed shape                | Error page, fix the contract |
+
+Each error has a customer-safe `userMessage`, plus `status`, `path` and `requestId` for logs.
+
+### Tests
+
+`npm test` runs Vitest. `lib/erp/http.test.ts` covers:
+
+- URL and headers
+- No secrets in logs
+- Mapping each status to an error type
+- Retries with back-off, `Retry-After`, and no retries for writes
+- Timeouts
+- Malformed responses
+- The product mapper
+
+`npm run check` includes the tests.

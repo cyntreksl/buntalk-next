@@ -1,44 +1,16 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { isSampleCatalogEnabled } from "@/lib/env.server";
 import { cacheTags } from "@/lib/cache-tags";
+import { isSampleCatalogEnabled } from "@/lib/env.server";
 import { isOnOffer } from "@/lib/pricing";
-import { erpFetch, ErpError } from "./client";
+import { ErpNotFoundError } from "./errors";
+import { erpGet } from "./http";
+import { toBanner, toCategory, toProduct } from "./mappers";
 import { sampleBanners, sampleCategories, sampleProducts } from "./sample-catalog";
+import { erpBannerSchema, erpCategorySchema, erpProductSchema, listOf, one } from "./schemas";
+import type { Banner, Category, Product } from "./types";
 
-export type Category = {
-  slug: string;
-  name: string;
-  description: string;
-  /** Absolute image URL from the ERP. Optional: a branded tile is shown without it. */
-  imageUrl?: string;
-};
-
-export type Product = {
-  slug: string;
-  name: string;
-  description: string;
-  price: number;
-  /** Original price when the product is on offer (higher than `price`). TODO(BUN-174): ERP scheme prices. */
-  compareAtPrice?: number;
-  currency: string;
-  categorySlug: string;
-  featured: boolean;
-};
-
-/** Home page promotional banner. Managed in the ERP. */
-export type Banner = {
-  id: string;
-  title: string;
-  subtitle?: string;
-  ctaLabel: string;
-  /** Internal path ("/category/buns") or absolute URL. */
-  href: string;
-  /** Absolute image URL from the ERP. Optional: a branded background is shown without it. */
-  imageUrl?: string;
-  /** Short text for the image, read by screen readers. Required when imageUrl is set. */
-  imageAlt?: string;
-};
+export type { Banner, Category, Product } from "./types";
 
 /**
  * Cached catalog reads.
@@ -46,15 +18,19 @@ export type Banner = {
  * Every function is a `'use cache'` scope with a cacheLife profile from
  * next.config.ts and cache tags from lib/cache-tags.ts. This is what lets the
  * home, category and product pages be prerendered and refreshed (ISR).
+ * Failures throw (and are not cached); the next request tries again.
  *
- * TODO(BUN-159): the ERP endpoint paths below are placeholders until the ERP
- * API client is built.
+ * Endpoints: see docs/erp-api-contract.md. Local development without ERP
+ * credentials uses lib/erp/sample-catalog.ts instead.
  */
 
 const notFoundToNull = (error: unknown) => {
-  if (error instanceof ErpError && error.status === 404) return null;
+  if (error instanceof ErpNotFoundError) return null;
   throw error;
 };
+
+/** Only active categories and products are shown, even if the ERP sends inactive ones. */
+const active = <T extends { is_active: boolean }>(items: T[]) => items.filter((i) => i.is_active);
 
 export async function getCategories(): Promise<Category[]> {
   "use cache";
@@ -62,7 +38,8 @@ export async function getCategories(): Promise<Category[]> {
   cacheTag(cacheTags.catalog, cacheTags.categories);
 
   if (isSampleCatalogEnabled()) return sampleCategories;
-  return erpFetch<Category[]>("catalog/categories");
+  const { data } = await erpGet("/categories", listOf(erpCategorySchema));
+  return active(data).map(toCategory);
 }
 
 /**
@@ -71,7 +48,7 @@ export async function getCategories(): Promise<Category[]> {
  * category links instead of taking the whole page down with them.
  *
  * The error is caught outside the cached read, so an outage isn't cached as an
- * empty list — the next request tries the ERP again.
+ * empty list: the next request tries the ERP again.
  */
 export async function getNavigationCategories(): Promise<Category[]> {
   try {
@@ -88,7 +65,10 @@ export async function getCategory(slug: string): Promise<Category | null> {
   cacheTag(cacheTags.catalog, cacheTags.categories, cacheTags.category(slug));
 
   if (isSampleCatalogEnabled()) return sampleCategories.find((c) => c.slug === slug) ?? null;
-  return erpFetch<Category>(`catalog/categories/${encodeURIComponent(slug)}`).catch(notFoundToNull);
+  const res = await erpGet(`/categories/${encodeURIComponent(slug)}`, one(erpCategorySchema)).catch(
+    notFoundToNull,
+  );
+  return res && res.data.is_active ? toCategory(res.data) : null;
 }
 
 export async function getProductsByCategory(categorySlug: string): Promise<Product[]> {
@@ -96,9 +76,11 @@ export async function getProductsByCategory(categorySlug: string): Promise<Produ
   cacheLife("catalog");
   cacheTag(cacheTags.catalog, cacheTags.products, cacheTags.category(categorySlug));
 
-  if (isSampleCatalogEnabled())
+  if (isSampleCatalogEnabled()) {
     return sampleProducts.filter((p) => p.categorySlug === categorySlug);
-  return erpFetch<Product[]>(`catalog/products?category=${encodeURIComponent(categorySlug)}`);
+  }
+  const { data } = await erpGet("/products", listOf(erpProductSchema), { category: categorySlug });
+  return active(data).map(toProduct);
 }
 
 export async function getProduct(slug: string): Promise<Product | null> {
@@ -107,7 +89,10 @@ export async function getProduct(slug: string): Promise<Product | null> {
   cacheTag(cacheTags.catalog, cacheTags.products, cacheTags.product(slug));
 
   if (isSampleCatalogEnabled()) return sampleProducts.find((p) => p.slug === slug) ?? null;
-  return erpFetch<Product>(`catalog/products/${encodeURIComponent(slug)}`).catch(notFoundToNull);
+  const res = await erpGet(`/products/${encodeURIComponent(slug)}`, one(erpProductSchema)).catch(
+    notFoundToNull,
+  );
+  return res && res.data.is_active ? toProduct(res.data) : null;
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
@@ -116,7 +101,8 @@ export async function getFeaturedProducts(): Promise<Product[]> {
   cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.products);
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter((p) => p.featured);
-  return erpFetch<Product[]>("catalog/products?featured=true");
+  const { data } = await erpGet("/products", listOf(erpProductSchema), { featured: 1 });
+  return active(data).map(toProduct);
 }
 
 /** Home page banners, in display order (the first is the hero). */
@@ -126,17 +112,19 @@ export async function getHomeBanners(): Promise<Banner[]> {
   cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.banners);
 
   if (isSampleCatalogEnabled()) return sampleBanners;
-  return erpFetch<Banner[]>("content/banners?placement=home");
+  const { data } = await erpGet("/banners", listOf(erpBannerSchema), { placement: "home" });
+  return data.map(toBanner);
 }
 
-/** Products currently on offer. TODO(BUN-163/BUN-174): ERP scheme engine. */
+/** Products currently on offer (priced by the ERP scheme engine, BUN-163/BUN-174). */
 export async function getOfferProducts(): Promise<Product[]> {
   "use cache";
   cacheLife("catalog");
   cacheTag(cacheTags.catalog, cacheTags.home, cacheTags.products);
 
   if (isSampleCatalogEnabled()) return sampleProducts.filter(isOnOffer);
-  return erpFetch<Product[]>("catalog/products?on_offer=true");
+  const { data } = await erpGet("/products", listOf(erpProductSchema), { on_offer: 1 });
+  return active(data).map(toProduct).filter(isOnOffer);
 }
 
 export async function searchProducts(query: string): Promise<Product[]> {
@@ -151,5 +139,6 @@ export async function searchProducts(query: string): Promise<Product[]> {
       (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q),
     );
   }
-  return erpFetch<Product[]>(`catalog/products?search=${encodeURIComponent(q)}`);
+  const { data } = await erpGet("/products", listOf(erpProductSchema), { search: q });
+  return active(data).map(toProduct);
 }
