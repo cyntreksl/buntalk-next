@@ -77,6 +77,10 @@ export const erpSkuSchema = z.object({
   visible_online: z.boolean().optional(),
   /** NEW: whether this SKU can be ordered online now. */
   in_stock: z.boolean().optional(),
+  /** NEW (BUN-175, ticket BUN-259): online order quantity limits. Null = no limit of its own. */
+  min_order_quantity: z.number().int().positive().nullable().optional(),
+  max_order_quantity: z.number().int().positive().nullable().optional(),
+  quantity_step: z.number().int().positive().nullable().optional(),
   /** NEW (BUN-171, ticket BUN-257): photo of this size/variant; shown when it's picked. */
   image_url: imageUrl.optional(),
   /** NEW (BUN-257): net weight of this size in grams (from the option values' grams). */
@@ -124,6 +128,10 @@ export const erpProductSchema = z.object({
   visible_online: z.boolean().optional(),
   is_customisable: z.boolean().default(false),
   allows_fractional: z.boolean().default(false),
+  /** NEW (BUN-175, ticket BUN-259): online order quantity limits. Null = no limit of its own. */
+  min_order_quantity: z.number().int().positive().nullable().optional(),
+  max_order_quantity: z.number().int().positive().nullable().optional(),
+  quantity_step: z.number().int().positive().nullable().optional(),
   /** NEW: shown in "Featured" on the home page. */
   is_featured: z.boolean().default(false),
   /**

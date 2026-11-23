@@ -309,3 +309,44 @@ export const searchMisses = pgTable(
 );
 
 export type SearchMiss = typeof searchMisses.$inferSelect;
+
+/* ------------------------------------------------------------------------- */
+/* Carts (BUN-175)                                                            */
+/* ------------------------------------------------------------------------- */
+
+/** One saved cart line (see lib/cart/persist.server.ts). Names and prices are a display copy. */
+export type SavedCartLine = {
+  key: string;
+  productSlug: string;
+  skuId?: string;
+  name: string;
+  variant?: string;
+  customization?: { designId: string; summary: string[] };
+  unitPrice: number;
+  quantity: number;
+};
+
+/**
+ * Saved carts, so a cart survives a cleared browser and (once sign-in exists)
+ * follows the customer to other devices.
+ *
+ * - Guest cart: found by the hash of the random token in the visitor's
+ *   httpOnly `buntalk_cart` cookie. The token itself is never stored.
+ * - Customer cart: found by the ERP customer id once sign-in exists
+ *   (BUN-186). Merging a guest cart into it on sign-in is BUN-178.
+ * Lines are stored as JSON and replaced as a whole on every save.
+ */
+export const carts = pgTable(
+  "carts",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").unique(),
+    customerId: text("customer_id").unique(),
+    lines: jsonb().$type<SavedCartLine[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("carts_updated_idx").on(t.updatedAt)],
+);
+
+export type Cart = typeof carts.$inferSelect;

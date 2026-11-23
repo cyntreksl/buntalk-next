@@ -232,3 +232,55 @@ describe("priceCart with the ERP scheme engine", () => {
     await expect(priceCart([{ productSlug: "fish-bun", quantity: 1 }])).rejects.toThrow();
   });
 });
+
+describe("priceCart: limits and Cake Studio designs (BUN-175)", () => {
+  const studio: Product = { ...bun, slug: "studio-cake", name: "Studio cake", customizable: true };
+  const limited: Product = { ...bun, slug: "party-pack", name: "Party pack", maxQuantity: 5 };
+
+  beforeEach(() => {
+    getProductsForCart.mockResolvedValue(
+      new Map<string, Product | null>([
+        ["fish-bun", bun],
+        ["studio-cake", studio],
+        ["party-pack", limited],
+      ]),
+    );
+  });
+
+  it("keeps the line total within 99, counting what's already in the cart", async () => {
+    const cart = await priceCart([{ productSlug: "fish-bun", quantity: 5, inCart: 97 }]);
+    expect(cart.items[0]).toMatchObject({ quantity: 99, adjusted: true });
+    expect(cart.items[0].limits).toEqual({ min: 1, max: 99, step: 1 });
+  });
+
+  it("uses the ERP's own limit for the product", async () => {
+    const cart = await priceCart([{ productSlug: "party-pack", quantity: 8 }]);
+    expect(cart.items[0]).toMatchObject({ quantity: 5, adjusted: true, lineTotal: 600 });
+    const ok = await priceCart([{ productSlug: "party-pack", quantity: 2, inCart: 1 }]);
+    expect(ok.items[0]).toMatchObject({ quantity: 3, adjusted: false });
+  });
+
+  it("refuses a Cake Studio product without a design", async () => {
+    const cart = await priceCart([{ productSlug: "studio-cake", quantity: 1 }]);
+    expect(cart.items).toEqual([]);
+    expect(cart.removed).toEqual([{ key: "studio-cake", reason: "customize_first" }]);
+  });
+
+  it("keeps one line per design, with its summary", async () => {
+    const design = { designId: "d-42", summary: ["Flavour: Chocolate"] };
+    const cart = await priceCart([
+      { productSlug: "studio-cake", quantity: 1, customization: design },
+    ]);
+    expect(cart.items[0]).toMatchObject({
+      key: "studio-cake:design-d-42",
+      customization: design,
+    });
+  });
+
+  it("ignores a design on a product that isn't customizable", async () => {
+    const cart = await priceCart([
+      { productSlug: "fish-bun", quantity: 1, customization: { designId: "x", summary: [] } },
+    ]);
+    expect(cart.items[0]).toMatchObject({ key: "fish-bun", customization: undefined });
+  });
+});

@@ -20,6 +20,18 @@ function compareAt(selling: number, compare: number | null | undefined): number 
   return compare != null && compare > selling ? compare : undefined;
 }
 
+function quantityLimits(x: {
+  min_order_quantity?: number | null;
+  max_order_quantity?: number | null;
+  quantity_step?: number | null;
+}) {
+  return {
+    minQuantity: orUndefined(x.min_order_quantity),
+    maxQuantity: orUndefined(x.max_order_quantity),
+    quantityStep: orUndefined(x.quantity_step),
+  };
+}
+
 export function toCategory(c: ErpCategory): Category {
   return {
     id: c.link_id,
@@ -54,6 +66,7 @@ export function toSku(s: ErpSku): Sku {
     price: s.price.selling_price,
     compareAtPrice: compareAt(s.price.selling_price, s.price.compare_at_price),
     inStock: s.in_stock ?? true,
+    ...quantityLimits(s),
     imageUrl: validImageUrl(s.image_url),
     netWeightGrams: orUndefined(s.net_weight_grams),
     servings: orUndefined(s.servings),
@@ -77,6 +90,7 @@ export function toProduct(p: ErpProduct): Product {
     categoryId: p.category.link_id,
     featured: p.is_featured,
     customizable: p.is_customisable,
+    ...quantityLimits(p),
     popularity: orUndefined(p.popularity),
     createdAt: orUndefined(p.created_at),
     code: p.code,

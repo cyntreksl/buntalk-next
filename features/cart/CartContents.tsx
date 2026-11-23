@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, type ReactNode } from "react";
 import { Button, Card, QuantityStepper, Skeleton } from "@/components/ui";
+import { MAX_QUANTITY } from "@/lib/cart/limits";
 import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import { useCartStore } from "./store";
@@ -43,7 +44,13 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
     );
   }
 
-  const noticeText = removedNoticeText(server.removed);
+  const noticeText = [
+    removedNoticeText(server.removed),
+    server.adjusted.length > 0 &&
+      `The quantity of ${server.adjusted.join(", ")} was lowered to the most you can order.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const notice = noticeText && (
     <p
       role="status"
@@ -78,6 +85,14 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
                   {item.variant && (
                     <span className="text-body-sm text-muted-foreground">{item.variant}</span>
                   )}
+                  {/* Cake Studio design summary (BUN-184). */}
+                  {item.customization && (
+                    <span className="text-body-sm text-muted-foreground">
+                      Cake Studio design
+                      {item.customization.summary.length > 0 &&
+                        `: ${item.customization.summary.join(" · ")}`}
+                    </span>
+                  )}
                   <span className="text-body-sm text-muted-foreground">
                     {formatPrice(item.unitPrice, currency)} each
                   </span>
@@ -93,6 +108,9 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
                     size="sm"
                     value={item.quantity}
                     onChange={(quantity) => setQuantity(item.key, quantity)}
+                    // The line's allowed quantities, from the server check (ERP limits, BUN-259).
+                    min={pricing?.limits.min ?? 1}
+                    max={pricing?.limits.max ?? MAX_QUANTITY}
                     label={`Quantity of ${item.name}${item.variant ? ` (${item.variant})` : ""}`}
                   />
                   <span className="w-24 text-right font-bold">

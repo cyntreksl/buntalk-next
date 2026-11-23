@@ -5,9 +5,17 @@ import type { CartItem } from "./store";
  * hidden products are refused and every price comes from the ERP.
  */
 
-type CartLine = Pick<CartItem, "productSlug" | "skuId" | "quantity">;
+type CartLine = Pick<CartItem, "productSlug" | "skuId" | "quantity" | "customization">;
+
+export type RemovedReasonCode = "not_available" | "sold_out" | "choose_variant" | "customize_first";
+
+/** Allowed quantities for a line (ERP limits within 1–99). */
+export type LineLimits = { min: number; max: number; step: number };
 
 export type PricedLine = CartItem & {
+  limits: LineLimits;
+  /** The quantity asked for was outside the limits and was changed. */
+  adjusted: boolean;
   /** quantity × unit price, before offers (calculated on the server). */
   lineSubtotal: number;
   /** Scheme discount on this line (from the ERP). */
@@ -20,7 +28,7 @@ type AddResult =
   | { ok: true; item: PricedLine }
   | {
       ok: false;
-      reason: "not_available" | "sold_out" | "choose_variant" | "error";
+      reason: RemovedReasonCode | "error";
       message: string;
     };
 
@@ -33,12 +41,15 @@ const post = (url: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-export async function checkItem(line: CartLine): Promise<AddResult> {
+/** Checks a line with the ERP before adding it. `inCart`: how many are already in the cart. */
+export async function checkItem(line: CartLine & { inCart?: number }): Promise<AddResult> {
   try {
     const res = await post("/api/cart/items", line);
     const body = await res.json().catch(() => null);
     if (res.ok && body?.item) return { ok: true, item: body.item };
-    const reason = ["not_available", "sold_out", "choose_variant"].includes(body?.error)
+    const reason = ["not_available", "sold_out", "choose_variant", "customize_first"].includes(
+      body?.error,
+    )
       ? body.error
       : "error";
     return { ok: false, reason, message: body?.message ?? GENERIC };
@@ -52,7 +63,7 @@ export type FreeItem = { name: string; variant?: string; quantity: number; schem
 
 export type ServerCart = {
   items: PricedLine[];
-  removed: { key: string; reason: "not_available" | "sold_out" | "choose_variant" }[];
+  removed: { key: string; reason: RemovedReasonCode }[];
   appliedSchemes: AppliedScheme[];
   freeItems: FreeItem[];
   currency: string;
@@ -65,7 +76,12 @@ export type ServerCart = {
 export async function validateCart(items: CartLine[]): Promise<ServerCart | null> {
   try {
     const res = await post("/api/cart/validate", {
-      items: items.map(({ productSlug, skuId, quantity }) => ({ productSlug, skuId, quantity })),
+      items: items.map(({ productSlug, skuId, quantity, customization }) => ({
+        productSlug,
+        skuId,
+        quantity,
+        customization,
+      })),
     });
     return res.ok ? await res.json() : null;
   } catch {
