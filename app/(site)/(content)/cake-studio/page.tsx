@@ -21,17 +21,26 @@ async function loadMenu(): Promise<CakeStudioMenu | null> {
   }
 }
 
+const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+
 async function Main({ searchParams }: Pick<PageProps<"/cake-studio">, "searchParams">) {
-  const { view } = await searchParams;
+  const { view, design, favourite } = await searchParams;
   return (
-    <CakeStudioMain menu={await loadMenu()} view={typeof view === "string" ? view : undefined} />
+    <CakeStudioMain
+      menu={await loadMenu()}
+      view={one(view)}
+      designId={one(design)}
+      favouriteId={Number(one(favourite)) || undefined}
+    />
   );
 }
 
 /**
- * Cake Studio (BUN-179, BUN-180): the ERP's Cake Studio embedded under the
- * storefront's header and footer (when set up), or the menu with today's
- * prices. With `?design={id}`, a saved design priced again today.
+ * Cake Studio (BUN-179 to BUN-181): the storefront's designer on the ERP's
+ * menu and pricing (or, with CAKE_STUDIO_MODE=embed, the ERP's own Cake
+ * Studio in a frame). `?design={id}` opens a saved design (shown priced again
+ * today, and loaded into the designer); `?favourite={id}` starts from a
+ * favourite; `?view=menu` lists the menu.
  * For a cake product, `/cake-studio/{productSlug}` opens with that cake chosen.
  */
 export default async function CakeStudioPage({ searchParams }: PageProps<"/cake-studio">) {
