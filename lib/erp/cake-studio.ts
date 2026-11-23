@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
+import { cakeDesignSchema, type CakeDesign } from "@/lib/cake-studio/design-schema";
 import { cacheTags } from "@/lib/cache-tags";
 import { erpGet, erpRequest } from "./http";
 import { one } from "./schemas";
@@ -68,6 +69,15 @@ const erpCakeMenuSchema = z.object({
       shape_prices: z.record(z.string(), money),
       /** Earliest date it can be ready (YYYY-MM-DD). */
       earliest: z.string(),
+      /** NEW (BUN-183, ticket BUN-263): this size's own notice in hours, when longer than the studio's. */
+      notice_hours: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 60)
+        .nullable()
+        .optional()
+        .catch(null),
       /** NEW (BUN-180, ticket BUN-261): the product size (SKU link_id) this cake size is sold as. */
       sku_link_id: z.string().nullable().optional(),
     }),
@@ -93,6 +103,15 @@ const erpCakeMenuSchema = z.object({
   ),
   rules: z.object({
     is_open: z.boolean(),
+    /** NEW (BUN-183, ticket BUN-263): the notice the kitchen needs for any cake, in hours. */
+    notice_hours: z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 60)
+      .nullable()
+      .optional()
+      .catch(null),
     message_max: z.number().int(),
     photo_max_kb: z.number().int(),
     deck_prices: z.record(z.string(), money).default({}),
@@ -103,28 +122,8 @@ const erpCakeMenuSchema = z.object({
   }),
 });
 
-/** The picks that make a design (what the customer chose). Ids are the ERP's. */
-export const cakeDesignSchema = z.object({
-  size_id: id,
-  tier_count: z.number().int().min(1).max(5).nullable().optional(),
-  deck_heights: z.array(z.number().int().min(1).max(60)).max(5).nullable().optional(),
-  shape_id: id,
-  sponge_id: id,
-  filling_id: id.nullable().optional(),
-  frosting_id: id,
-  finish_id: id,
-  drip_id: id.nullable().optional(),
-  topping_ids: z.array(id).max(20).nullable().optional(),
-  candle_count: z.number().int().min(1).max(200).nullable().optional(),
-  /** eggless | less_sugar | number_topper | photo_print */
-  extras: z.array(z.string().max(30)).max(10).nullable().optional(),
-  topper_number: z.string().max(3).nullable().optional(),
-  message: z.string().max(120).nullable().optional(),
-  lettering_id: id.nullable().optional(),
-  writing_colour_id: id.nullable().optional(),
-  occasion_id: id.nullable().optional(),
-});
-export type CakeDesign = z.infer<typeof cakeDesignSchema>;
+// The design's schema is shared with the browser (drafts, BUN-183), so it lives outside lib/erp.
+export { cakeDesignSchema, type CakeDesign };
 
 const erpCakeQuoteSchema = z.object({
   /** The design as the ERP checked it (defaults filled in, unknown picks removed). */
@@ -133,11 +132,20 @@ const erpCakeQuoteSchema = z.object({
   total: money,
   summary: z.array(z.object({ label: z.string(), value: z.string() })),
   earliest_date: z.string().nullable().optional(),
+  /** NEW (BUN-183, ticket BUN-263): the notice this design needs, in hours (what earliest_date is from). */
+  notice_hours: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60)
+    .nullable()
+    .optional()
+    .catch(null),
 });
 const erpSavedDesignSchema = erpCakeQuoteSchema.extend({
   id: z.string().min(1),
   created_at: z.string().nullable().optional(),
-  /** NEW (BUN-182, ticket BUN-260): picture of the design, stored by the ERP. */
+  /** NEW (BUN-182, ticket BUN-262): picture of the design, stored by the ERP. */
   preview_url: z.url().nullable().optional().catch(null),
 });
 
@@ -154,6 +162,8 @@ export type CakeStudioMenu = {
     /** Lowest price of this size in any shape ("From …"). */
     fromPrice: number;
     earliest: string;
+    /** This size's own notice in hours, if the ERP sends it. */
+    noticeHours?: number;
     /** The product size (SKU) this cake size is sold as, if linked in the ERP. */
     skuLinkId?: string;
   }[];
@@ -181,6 +191,8 @@ export type CakeStudioMenu = {
   }[];
   rules: {
     isOpen: boolean;
+    /** The notice the kitchen needs for any cake, in hours, if the ERP sends it. */
+    noticeHours?: number;
     messageMax: number;
     photoMaxKb: number;
     deckPrices: Record<string, number>;
@@ -196,7 +208,10 @@ export type CakeQuote = {
   lines: { label: string; price: number }[];
   total: number;
   summary: { label: string; value: string }[];
+  /** The first day this cake can be ready (YYYY-MM-DD). */
   earliestDate?: string;
+  /** The notice this design needs, in hours, if the ERP sends it. */
+  noticeHours?: number;
 };
 
 export type SavedCakeDesign = CakeQuote & {
@@ -222,6 +237,7 @@ export function toCakeStudioMenu(m: z.infer<typeof erpCakeMenuSchema>): CakeStud
         shapePrices: s.shape_prices,
         fromPrice: prices.length > 0 ? Math.min(...prices) : 0,
         earliest: s.earliest,
+        noticeHours: orUndefined(s.notice_hours),
         skuLinkId: orUndefined(s.sku_link_id),
       };
     }),
@@ -251,6 +267,7 @@ export function toCakeStudioMenu(m: z.infer<typeof erpCakeMenuSchema>): CakeStud
     })),
     rules: {
       isOpen: m.rules.is_open,
+      noticeHours: orUndefined(m.rules.notice_hours),
       messageMax: m.rules.message_max,
       photoMaxKb: m.rules.photo_max_kb,
       deckPrices: m.rules.deck_prices,
@@ -275,6 +292,7 @@ const toQuote = (q: z.infer<typeof erpCakeQuoteSchema>): CakeQuote => ({
   total: q.total,
   summary: q.summary,
   earliestDate: orUndefined(q.earliest_date),
+  noticeHours: orUndefined(q.notice_hours),
 });
 
 /** The Cake Studio menu at the online (customer) prices. Cached; refreshed by the ERP's webhook. */

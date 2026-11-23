@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { Card } from "@/components/ui";
 import { getCustomerId } from "@/lib/auth";
 import { startingDesign } from "@/lib/cake-studio/design";
+import { draftKey } from "@/lib/cake-studio/draft";
 import { cakeStudioEmbedSrc, type Preselect } from "@/lib/cake-studio/embed.server";
 import { serverEnv } from "@/lib/env.server";
 import { cakeDesignSchema, getCakeDesign, type CakeDesign, type CakeStudioMenu } from "@/lib/erp";
@@ -82,7 +83,13 @@ export async function CakeStudioMain({
   }
   if (view !== "menu" && menu.rules.isOpen && menu.sizes.length > 0) {
     const initial = await initialDesign(menu, { designId, favouriteId, sizeId: preselect?.sizeId });
-    return <CakeDesigner menu={menu} initial={initial} />;
+    return (
+      <CakeDesigner
+        menu={menu}
+        initial={initial}
+        draftKey={draftKey({ designId, favouriteId, sizeId: preselect?.sizeId })}
+      />
+    );
   }
   return (
     <>

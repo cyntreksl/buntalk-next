@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { Button, Card, Spinner } from "@/components/ui";
 import {
   applyChange,
@@ -16,6 +25,14 @@ import {
   sizeProblem,
   type Menu,
 } from "@/lib/cake-studio/design";
+import {
+  clearDraft,
+  noticeText,
+  parseDraft,
+  readDraftText,
+  readyDateText,
+  writeDraft,
+} from "@/lib/cake-studio/draft";
 import type { CakeDesign, CakeQuote } from "@/lib/erp";
 import { cx, formatPrice } from "@/lib/utils";
 import { Cake3D, shrinkPng } from "./Cake3D";
@@ -25,9 +42,12 @@ const LKR = (n: number) => formatPrice(n, "LKR");
 const impact = (n: number | null | undefined) =>
   n == null ? null : n === 0 ? "Included" : `${n > 0 ? "+" : "−"}${LKR(Math.abs(n))}`;
 
+/** A price older than this is asked for again when the customer comes back to the tab. */
+const QUOTE_FRESH_MS = 10 * 60_000;
+
 type QuoteState =
   | { status: "loading" }
-  | { status: "ready"; quote: CakeQuote }
+  | { status: "ready"; quote: CakeQuote; at: number }
   | { status: "invalid"; message: string; fieldErrors: Record<string, string> }
   | { status: "error"; message: string };
 
@@ -198,15 +218,76 @@ function Step({
  *   (adding it to the cart is BUN-184), with a picture of the 3D cake.
  * - On phones the steps stack and the price stays in a bar at the bottom.
  */
-export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesign }) {
-  const [design, setDesign] = useState(initial);
+const noSubscribe = () => () => {};
+/** The draft as it was when the page opened (read once, so saving it doesn't restart the designer). */
+const openedDrafts = new Map<string, string>();
+
+/**
+ * The designer, starting from the customer's draft when there is one
+ * (BUN-183): the design they were working on before a refresh, if today's
+ * menu can still make it. The server renders the starting design; the
+ * browser then switches to the draft.
+ */
+export function CakeDesigner({
+  menu,
+  initial,
+  draftKey,
+}: {
+  menu: Menu;
+  initial: CakeDesign;
+  draftKey: string;
+}) {
+  const text = useSyncExternalStore(
+    noSubscribe,
+    () => {
+      if (!openedDrafts.has(draftKey)) openedDrafts.set(draftKey, readDraftText(draftKey));
+      return openedDrafts.get(draftKey)!;
+    },
+    () => "",
+  );
+  // Read again next time the designer opens (another visit, not this one's saves).
+  useEffect(() => () => void openedDrafts.delete(draftKey), [draftKey]);
+  const draft = useMemo(() => parseDraft(text, menu), [text, menu]);
+  const restored = draft !== null && JSON.stringify(draft) !== JSON.stringify(initial);
+  return (
+    <Designer
+      key={restored ? "draft" : "start"}
+      menu={menu}
+      initial={initial}
+      start={restored ? draft : initial}
+      restored={restored}
+      draftKey={draftKey}
+    />
+  );
+}
+
+function Designer({
+  menu,
+  initial,
+  start,
+  restored,
+  draftKey,
+}: {
+  menu: Menu;
+  initial: CakeDesign;
+  start: CakeDesign;
+  restored: boolean;
+  draftKey: string;
+}) {
+  const [design, setDesign] = useState(start);
+  const [showRestored, setShowRestored] = useState(restored);
+  const [round, setRound] = useState(0);
   const [history, setHistory] = useState<CakeDesign[]>([]);
   const [openStep, setOpenStep] = useState(1);
   const [quote, setQuote] = useState<QuoteState>({ status: "loading" });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<{ id: string; total: number; previewUrl?: string } | null>(
-    null,
-  );
+  const [saved, setSaved] = useState<{
+    id: string;
+    total: number;
+    previewUrl?: string;
+    /** The price shown before saving, when the ERP's price at saving was different. */
+    shownTotal?: number;
+  } | null>(null);
   const grab = useRef<CakeGrab | null>(null);
   const onGrab = useCallback((g: CakeGrab | null) => {
     grab.current = g;
@@ -228,10 +309,36 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
     setHistory((h) => pushHistory(h, design));
     setDesign(initial);
     setSaved(null);
+    setShowRestored(false);
   };
 
   const problems = designProblems(menu, design);
   const key = JSON.stringify(design);
+
+  // Keep the design in this browser, so a refresh doesn't lose it (none kept for the untouched start).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (key === JSON.stringify(initial)) clearDraft(draftKey);
+      else writeDraft(draftKey, JSON.parse(key));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [key, initial, draftKey]);
+
+  // Back on the tab after a while: ask for today's price again (the ERP's prices may have changed).
+  const quotedAt = quote.status === "ready" ? quote.at : null;
+  useEffect(() => {
+    const onVisible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        quotedAt !== null &&
+        Date.now() - quotedAt > QUOTE_FRESH_MS
+      ) {
+        setRound((r) => r + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [quotedAt]);
 
   // Ask the ERP for the price shortly after each change (it checks the design too).
   useEffect(() => {
@@ -246,7 +353,7 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
           signal: controller.signal,
         });
         const body = await res.json();
-        if (res.ok) setQuote({ status: "ready", quote: body });
+        if (res.ok) setQuote({ status: "ready", quote: body, at: Date.now() });
         else if (res.status === 422)
           setQuote({
             status: "invalid",
@@ -264,7 +371,7 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
       clearTimeout(timer);
       controller.abort();
     };
-  }, [key]);
+  }, [key, round]);
 
   const erpErrors = quote.status === "invalid" ? quote.fieldErrors : {};
   const errorFor = (field: string) => problems[field] ?? erpErrors[field];
@@ -291,8 +398,17 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
         body: JSON.stringify({ design, preview }),
       });
       const body = await res.json();
-      if (res.ok) setSaved({ id: body.id, total: body.total, previewUrl: body.previewUrl });
-      else
+      if (res.ok) {
+        const shown = quote.status === "ready" ? quote.quote.total : undefined;
+        setSaved({
+          id: body.id,
+          total: body.total,
+          previewUrl: body.previewUrl,
+          shownTotal: shown !== undefined && shown !== body.total ? shown : undefined,
+        });
+        // The ERP priced it again when saving: show that price.
+        setQuote({ status: "ready", quote: body, at: Date.now() });
+      } else
         setQuote({ status: "invalid", message: body.message, fieldErrors: body.fieldErrors ?? {} });
     } finally {
       setSaving(false);
@@ -650,11 +766,36 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
   const onPart = useCallback((part: number) => setOpenStep([2, 4, 5, 6, 7][part] ?? 1), []);
 
   const total = quote.status === "ready" ? quote.quote.total : null;
+  // When it can be ready: the ERP's date for this design (else the size's), and the notice behind it.
+  const readyOn =
+    (quote.status === "ready" ? quote.quote.earliestDate : undefined) ?? size?.earliest;
+  const sizeNotice = [menu.rules.noticeHours, size?.noticeHours].filter(
+    (h): h is number => h !== undefined,
+  );
+  const noticeHours =
+    (quote.status === "ready" ? quote.quote.noticeHours : undefined) ??
+    (sizeNotice.length > 0 ? Math.max(...sizeNotice) : undefined);
   const priceText = quote.status === "loading" ? "Pricing…" : total !== null ? LKR(total) : "—";
 
   return (
     <div className="grid gap-8 pb-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:pb-0">
       <div className="flex flex-col gap-4 lg:sticky lg:top-(--sticky-offset) lg:self-start">
+        {showRestored && (
+          <div
+            role="status"
+            className="bg-accent-soft text-body-sm flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3"
+          >
+            <span className="font-semibold">We kept the cake you were designing.</span>
+            <span className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={reset}>
+                Start fresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowRestored(false)}>
+                OK
+              </Button>
+            </span>
+          </div>
+        )}
         <Card className="bg-accent-soft border-0 p-4">
           <Cake3D menu={menu} design={design} autoView={autoView} onPart={onPart} onGrab={onGrab} />
         </Card>
@@ -678,12 +819,18 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
                 <span>Total</span>
                 <span>{LKR(quote.quote.total)}</span>
               </p>
-              {quote.quote.earliestDate && (
-                <p className="text-body-sm text-muted-foreground">
-                  Ready from {quote.quote.earliestDate}
-                </p>
-              )}
+              <p className="text-caption text-muted-foreground">
+                Priced by our kitchen&apos;s system for this exact cake.
+              </p>
             </>
+          )}
+          {readyOn && (
+            <p className="bg-surface-muted text-body-sm rounded-md px-3 py-2">
+              <span className="font-semibold">Ready from {readyDateText(readyOn)}.</span>
+              {noticeHours !== undefined && noticeHours > 0 && (
+                <> We need {noticeText(noticeHours)} notice to bake it.</>
+              )}
+            </p>
           )}
           {quote.status === "loading" && (
             <p className="text-body-sm text-muted-foreground flex items-center gap-2">
@@ -694,6 +841,16 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
             <p role="alert" className="text-body-sm text-danger font-semibold">
               {quote.message}
             </p>
+          )}
+          {quote.status === "error" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => setRound(round + 1)}
+            >
+              Try again
+            </Button>
           )}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={undo} disabled={history.length === 0}>
@@ -738,6 +895,13 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
                   Your design code is {saved.id}
                 </Link>
                 . Adding it to the cart is coming soon.
+                {saved.shownTotal !== undefined && (
+                  <>
+                    {" "}
+                    The price changed from {LKR(saved.shownTotal)} while you were designing; this is
+                    today&apos;s price.
+                  </>
+                )}
               </span>
             </p>
           )}
