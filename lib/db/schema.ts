@@ -10,6 +10,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -347,8 +348,8 @@ export type SavedCartLine = {
  *
  * - Guest cart: found by the hash of the random token in the visitor's
  *   httpOnly `buntalk_cart` cookie. The token itself is never stored.
- * - Customer cart: found by the ERP customer id once sign-in exists
- *   (BUN-186). Merging a guest cart into it on sign-in is BUN-178.
+ * - Customer cart: found by the signed-in user's id (`auth_users.id`,
+ *   BUN-186). Merging a guest cart into it on sign-in is BUN-178.
  * Lines are stored as JSON and replaced as a whole on every save.
  */
 export const carts = pgTable(
@@ -365,3 +366,91 @@ export const carts = pgTable(
 );
 
 export type Cart = typeof carts.$inferSelect;
+
+/* ------------------------------------------------------------------------- */
+/* Sign-in (BUN-186): Better Auth's tables                                    */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * A person who can sign in. One user can have several sign-in methods
+ * (`auth_accounts`: email and password, Google, Apple, phone). `customerId`
+ * links them to their storefront customer (and through it to the ERP
+ * customer, BUN-166) once registration has created one (BUN-187/192).
+ */
+export const authUsers = pgTable("auth_users", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  /** Lower case. Unique: one account per email. */
+  email: text().notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text(),
+  customerId: uuid("customer_id")
+    .unique()
+    .references(() => customers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Signed-in sessions. The browser holds the session token in an httpOnly
+ * cookie; signing out deletes the row, so the cookie stops working everywhere.
+ */
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: text().primaryKey(),
+    token: text().notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("auth_sessions_user_idx").on(t.userId)],
+);
+
+/** A sign-in method of a user: `providerId` "credential" (email and password), "google", "apple", … */
+export const authAccounts = pgTable(
+  "auth_accounts",
+  {
+    id: text().primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text(),
+    /** Password hash (scrypt) for email and password sign-in. */
+    password: text(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("auth_accounts_user_idx").on(t.userId),
+    uniqueIndex("auth_accounts_provider_account_idx").on(t.providerId, t.accountId),
+  ],
+);
+
+/** One-time values: email verification, password reset, OTP codes (later sign-in tickets). */
+export const authVerifications = pgTable(
+  "auth_verifications",
+  {
+    id: text().primaryKey(),
+    identifier: text().notNull(),
+    value: text().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("auth_verifications_identifier_idx").on(t.identifier)],
+);
+
+export type AuthUser = typeof authUsers.$inferSelect;

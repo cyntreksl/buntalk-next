@@ -1,18 +1,18 @@
 import { getSession } from "@/lib/auth";
 
 /**
- * GET /api/session — is the visitor signed in?
+ * GET /api/session: is the visitor signed in, and their first name (BUN-186).
  *
  * The site header is part of cached pages, so it can't read the session on
  * the server. The account menu calls this from the browser instead. Never
- * cached (Cache-Control: no-store), and returns no personal data.
- *
- * TODO(BUN-186): return the customer's first name once auth is in place.
+ * cached (Cache-Control: no-store); returns nothing else about the customer.
  */
 export async function GET() {
   const session = await getSession();
   return Response.json(
-    { signedIn: session !== null },
+    session
+      ? { signedIn: true, firstName: session.name.trim().split(/\s+/)[0] || null }
+      : { signedIn: false, firstName: null },
     { headers: { "Cache-Control": "private, no-store" } },
   );
 }

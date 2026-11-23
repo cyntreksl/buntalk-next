@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCustomerId } from "@/lib/auth";
+import { getUserId } from "@/lib/auth";
 import { ensureCartTokenHash, readCartTokenHash } from "@/lib/cart/cookie.server";
 import { MAX_CART_LINES } from "@/lib/cart/limits";
 import { loadCart, normalizeLines, saveCart, savedLineSchema } from "@/lib/cart/persist.server";
@@ -34,7 +34,7 @@ const response = (cart: { lines: unknown[]; updatedAt: Date } | null) =>
   );
 
 export async function GET() {
-  const customerId = await getCustomerId();
+  const customerId = await getUserId();
   const tokenHash = customerId ? null : await readCartTokenHash();
   if (!customerId && !tokenHash) return response(null);
   return response(await loadCart(await getDb(), { customerId, tokenHash }));
@@ -59,7 +59,7 @@ export async function PUT(request: Request) {
     );
   }
   const lines = normalizeLines(parsed.data.items);
-  const customerId = await getCustomerId();
+  const customerId = await getUserId();
   // Don't start a saved cart (or set a cookie) just to save an empty one.
   if (!customerId && lines.length === 0 && !(await readCartTokenHash())) return response(null);
   const tokenHash = customerId ? null : await ensureCartTokenHash();

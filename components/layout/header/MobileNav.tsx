@@ -7,6 +7,7 @@ import { accountNav } from "@/features/account/nav";
 import { Drawer, MenuIcon } from "@/components/ui";
 import type { CategoryNode } from "@/lib/erp";
 import { cx } from "@/lib/utils";
+import { SignOutButton } from "@/features/auth/SignOutButton";
 import { useSessionStatus } from "./AccountMenu";
 
 /**
@@ -113,12 +114,18 @@ export function MobileNav({
                   </li>
                 ))
               ) : (
-                <li>
-                  {/* TODO(BUN-186): link to the sign-in page. */}
-                  <Link href="/account" className={itemClasses("/account")}>
-                    Sign in
-                  </Link>
-                </li>
+                <>
+                  <li>
+                    <Link href="/sign-in" className={itemClasses("/sign-in")}>
+                      Sign in
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/sign-up" className={itemClasses("/sign-up")}>
+                      Create an account
+                    </Link>
+                  </li>
+                </>
               )}
               <li>
                 <Link href="/cart" className={itemClasses("/cart")}>
@@ -126,6 +133,7 @@ export function MobileNav({
                 </Link>
               </li>
             </ul>
+            {signedIn && <SignOutButton variant="ghost" className="mt-2 self-start" />}
           </nav>
           <div className="border-border border-t pt-4">{languageSwitcher}</div>
         </div>

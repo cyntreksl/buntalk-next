@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Profile" };
 export default function AccountProfilePage() {
   return (
     <AccountTemplate active="profile" title="Profile">
-      <AccountGate>
+      <AccountGate returnTo="/account/profile">
         <Card padding="lg">
           <p className="text-muted-foreground">
             Your name, email and phone number will appear here.

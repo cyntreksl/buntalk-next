@@ -1,25 +1,26 @@
 import { Suspense, type ReactNode } from "react";
-import { Card, Skeleton } from "@/components/ui";
-import { getSession } from "@/lib/auth";
+import { Skeleton } from "@/components/ui";
+import { requireSession } from "@/lib/auth";
 
-async function Gate({ children }: { children: ReactNode }) {
-  const session = await getSession();
-  if (!session) {
-    return (
-      <Card padding="lg">
-        <p className="text-muted-foreground">Please sign in to see your account.</p>
-      </Card>
-    );
-  }
+async function Gate({ children, returnTo }: { children: ReactNode; returnTo: string }) {
+  await requireSession(returnTo);
   return <>{children}</>;
 }
 
 /**
- * Shows its content only to signed-in customers. Reads the session cookie
- * inside <Suspense>, so account pages render per request and are never cached
- * for other users. Sign-in itself comes with BUN-186.
+ * Shows its content only to signed-in customers; anyone else goes to sign-in
+ * and comes back to `returnTo` afterwards (BUN-186). The session is checked
+ * on the server against the database (the proxy only checks for the cookie).
+ * Reads the session inside <Suspense>, so account pages render per request
+ * and are never cached for other users.
  */
-export function AccountGate({ children }: { children: ReactNode }) {
+export function AccountGate({
+  children,
+  returnTo = "/account",
+}: {
+  children: ReactNode;
+  returnTo?: string;
+}) {
   return (
     <Suspense
       fallback={
@@ -29,7 +30,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
         </div>
       }
     >
-      <Gate>{children}</Gate>
+      <Gate returnTo={returnTo}>{children}</Gate>
     </Suspense>
   );
 }

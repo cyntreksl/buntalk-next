@@ -6,7 +6,16 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /** Paths that show per-user data. Browsers, proxies and CDNs must never store them. */
-const PRIVATE_PATHS = ["/cart", "/checkout", "/account", "/orders"];
+// Per-visitor pages, never stored by browsers, proxies or CDNs (sign-in pages and API: BUN-186).
+const PRIVATE_PATHS = [
+  "/cart",
+  "/checkout",
+  "/account",
+  "/orders",
+  "/sign-in",
+  "/sign-up",
+  "/api/auth",
+];
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
