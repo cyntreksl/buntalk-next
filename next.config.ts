@@ -15,6 +15,8 @@ const PRIVATE_PATHS = [
   "/sign-in",
   "/sign-up",
   "/email-verified",
+  "/forgot-password",
+  "/reset-password",
   "/api/auth",
 ];
 

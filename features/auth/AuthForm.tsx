@@ -5,12 +5,13 @@ import { useState, type FormEvent } from "react";
 import { Button, FormField, Input } from "@/components/ui";
 import { syncCartNow } from "@/features/cart/CartSync";
 import { authClient } from "@/lib/auth/client";
-import { passwordChecks, passwordProblem, PASSWORD_MAX } from "@/lib/auth/password";
+import { useHydrated } from "./useHydrated";
+import { passwordProblem, PASSWORD_MAX } from "@/lib/auth/password";
 import { usernameProblem } from "@/lib/auth/username";
 import { getQueryClient } from "@/lib/query-client";
-import { cx } from "@/lib/utils";
-import type { AuthMode } from "./dialog";
+import { useAuthDialog, type AuthMode } from "./dialog";
 import { announce } from "./events";
+import { PasswordInput, PasswordRules } from "./PasswordFields";
 
 type AuthError = { code?: string; status?: number; message?: string } | null;
 
@@ -38,6 +39,8 @@ export function authErrorMessage(error: AuthError): string {
       return "Enter a valid email address.";
     case "USERNAME_IS_ALREADY_TAKEN":
       return "That username is taken. Choose another one.";
+    case "INVALID_TOKEN":
+      return "This link doesn't work any more. Ask for a new one.";
     case "USERNAME_TOO_SHORT":
     case "USERNAME_TOO_LONG":
     case "INVALID_USERNAME":
@@ -49,28 +52,6 @@ export function authErrorMessage(error: AuthError): string {
 
 /** The email-confirmation link brings the customer here, signed in, then on to `next`. */
 const verifiedUrl = (next: string) => `/email-verified?${new URLSearchParams({ next })}`;
-
-/** The rules, ticked off while the customer types a new password. */
-function PasswordRules({ password, email, username }: Record<string, string>) {
-  const checks = passwordChecks(password, { email, username });
-  return (
-    <ul className="text-caption flex flex-col gap-0.5" aria-label="Password rules">
-      {checks.map((c) => (
-        <li
-          key={c.id}
-          className={cx(
-            "flex items-center gap-1.5",
-            c.ok ? "text-success" : "text-muted-foreground",
-          )}
-        >
-          <span aria-hidden="true">{c.ok ? "✓" : "•"}</span>
-          {c.label}
-          <span className="sr-only">{c.ok ? " (done)" : " (not yet)"}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 /** After signing up: the confirmation email is on its way. */
 function CheckEmail({ email, next, onBack }: { email: string; next: string; onBack: () => void }) {
@@ -139,10 +120,10 @@ export function AuthForm({
   onDone: () => void;
 }) {
   const [pending, setPending] = useState(false);
+  const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [values, setValues] = useState({ email: "", username: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const signingUp = mode === "sign-up";
 
@@ -244,7 +225,7 @@ export function AuthForm({
     setValues((v) => ({ ...v, [field]: e.target.value }));
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
+    <form method="post" onSubmit={submit} className="flex flex-col gap-4">
       {signingUp ? (
         <>
           <FormField label="Your name" required>
@@ -280,30 +261,23 @@ export function AuthForm({
           <Input name="identifier" autoComplete="username" required maxLength={254} />
         </FormField>
       )}
-      <FormField label="Password" required error={fieldErrors.password}>
-        <div className="flex gap-2">
-          <Input
-            name="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete={signingUp ? "new-password" : "current-password"}
-            required
-            minLength={signingUp ? 8 : undefined}
-            maxLength={PASSWORD_MAX}
-            value={values.password}
-            onChange={set("password")}
-            className="flex-1"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-pressed={showPassword}
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? "Hide" : "Show"}
-          </Button>
-        </div>
-      </FormField>
+      <PasswordInput
+        label="Password"
+        name="password"
+        value={values.password}
+        onChange={(password) => setValues((v) => ({ ...v, password }))}
+        autoComplete={signingUp ? "new-password" : "current-password"}
+        error={fieldErrors.password}
+      />
+      {!signingUp && (
+        <Link
+          href="/forgot-password"
+          onClick={() => useAuthDialog.getState().close()}
+          className="text-body-sm text-primary -mt-2 self-end font-semibold underline"
+        >
+          Forgot your password?
+        </Link>
+      )}
       {signingUp && (
         <PasswordRules password={values.password} email={values.email} username={values.username} />
       )}
@@ -315,7 +289,7 @@ export function AuthForm({
           {error}
         </p>
       )}
-      <Button type="submit" loading={pending} fullWidth>
+      <Button type="submit" loading={pending} disabled={!hydrated} fullWidth>
         {signingUp ? "Create account" : "Sign in"}
       </Button>
       <p className="text-body-sm text-muted-foreground text-center">

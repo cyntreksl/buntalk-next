@@ -11,4 +11,9 @@ import { createAuthClient } from "better-auth/react";
 export const authClient = createAuthClient({
   basePath: "/api/auth",
   plugins: [usernameClient()],
+  // No automatic redirect after a call: sign-in sends a `callbackURL` only for the
+  // email-confirmation link (an unconfirmed account gets a new one), and the forms
+  // decide where to go afterwards. Google / Apple sign-in (BUN-189/190) navigate
+  // to the provider themselves.
+  disableDefaultFetchPlugins: true,
 });

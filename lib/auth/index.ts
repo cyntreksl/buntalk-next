@@ -88,8 +88,14 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 /** The signed-in customer's linked sign-in methods ("Email and password", "Google", …). */
-export async function listSignInMethods(): Promise<{ id: string; label: string }[]> {
+export async function listSignInMethods(): Promise<
+  { id: string; provider: string; label: string }[]
+> {
   const auth = await getAuth();
   const accounts = await auth.api.listUserAccounts({ headers: await headers() });
-  return accounts.map((a) => ({ id: a.id, label: METHOD_LABELS[a.providerId] ?? a.providerId }));
+  return accounts.map((a) => ({
+    id: a.id,
+    provider: a.providerId,
+    label: METHOD_LABELS[a.providerId] ?? a.providerId,
+  }));
 }

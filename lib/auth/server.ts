@@ -16,7 +16,7 @@ import {
 import { sendEmail } from "@/lib/email";
 import { authConfig } from "@/lib/env.server";
 import { AUTH_COOKIE_PREFIX, SESSION_DAYS } from "./constants";
-import { alreadyRegistered, verifyEmail } from "./emails";
+import { alreadyRegistered, passwordChanged, resetPassword, verifyEmail } from "./emails";
 import { PASSWORD_MAX, PASSWORD_MIN, passwordProblem } from "./password";
 import { USERNAME_PATTERN } from "./username";
 
@@ -42,6 +42,10 @@ import { USERNAME_PATTERN } from "./username";
  *   with an email that already has an account looks the same as a new
  *   sign-up (the owner gets an email instead), so nobody can find out who
  *   has an account.
+ * - **Password reset (BUN-188):** "forgot password" emails a link that works
+ *   once, for 30 minutes (the same answer whether or not the email has an
+ *   account). Setting the new password signs the account out everywhere; the
+ *   owner is emailed whenever the password is reset or changed.
  * - **Rate limits (BUN-187):** sign-in 5 tries and sign-up 5 per 5 minutes,
  *   new confirmation emails 3 per 5 minutes, per client IP and endpoint,
  *   counted in the database (`auth_rate_limits`) across server instances.
@@ -87,6 +91,13 @@ function createAuth(db: Db) {
       maxPasswordLength: PASSWORD_MAX,
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 30 * 60,
+      sendResetPassword: async ({ user, url }) => {
+        await sendEmail(resetPassword(user.email, user.name, url));
+      },
+      onPasswordReset: async ({ user }) => {
+        await sendEmail(passwordChanged(user.email, user.name, `${baseUrl}/forgot-password`));
+      },
       // Signing up with an email that already has an account: the page shows the
       // usual "check your email", and the owner is told by email.
       onExistingUserSignUp: async ({ user }) => {
@@ -114,6 +125,9 @@ function createAuth(db: Db) {
         "/sign-up/email": { window: 300, max: 5 },
         "/send-verification-email": { window: 300, max: 3 },
         "/is-username-available": { window: 60, max: 20 },
+        "/request-password-reset": { window: 300, max: 3 },
+        "/reset-password": { window: 300, max: 5 },
+        "/change-password": { window: 300, max: 5 },
       },
     },
     advanced: {
@@ -142,6 +156,11 @@ function createAuth(db: Db) {
       after: createAuthMiddleware(async (ctx) => {
         const signedIn = ctx.context.newSession;
         if (signedIn) await mergeCartOnSignIn(signedIn.user.id);
+        // Password changed from the account page (a reset sends this from onPasswordReset).
+        const user = ctx.context.session?.user;
+        if (ctx.path === "/change-password" && user && !(ctx.context.returned instanceof Error)) {
+          await sendEmail(passwordChanged(user.email, user.name, `${baseUrl}/forgot-password`));
+        }
       }),
     },
     plugins: [
