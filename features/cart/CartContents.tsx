@@ -8,7 +8,7 @@ import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import { CartLineThumb } from "./CartLineThumb";
 import { useCartStore } from "./store";
-import { removedNoticeText, useServerCart, type ServerCartState } from "./useServerCart";
+import { cartNoticeText, useServerCart, type ServerCartState } from "./useServerCart";
 
 // The cart is read from localStorage, which only exists in the browser.
 // Render a placeholder on the server and during hydration, then show the real cart.
@@ -46,13 +46,7 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
     );
   }
 
-  const noticeText = [
-    removedNoticeText(server.removed),
-    server.adjusted.length > 0 &&
-      `The quantity of ${server.adjusted.join(", ")} was lowered to the most you can order.`,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const noticeText = cartNoticeText(server);
   const notice = noticeText && (
     <p
       role="status"
@@ -240,6 +234,20 @@ export function CartTotals({
           <dt>{totalLabel}</dt>
           <dd>{failed ? "—" : amount(totals?.total)}</dd>
         </div>
+        {/* Everything the ERP's offers saved, in one number (BUN-177). */}
+        {!checking && totals && (totals.discountTotal > 0 || server.freeItems.length > 0) && (
+          <div className="bg-success-soft text-success text-body-sm flex justify-between gap-4 rounded-md px-3 py-2 font-bold">
+            <dt>You save</dt>
+            <dd>
+              {totals.discountTotal > 0 && formatPrice(totals.discountTotal, currency)}
+              {totals.discountTotal > 0 && server.freeItems.length > 0 && " + "}
+              {server.freeItems.length > 0 &&
+                `${server.freeItems.reduce((n, f) => n + f.quantity, 0)} free item${
+                  server.freeItems.reduce((n, f) => n + f.quantity, 0) === 1 ? "" : "s"
+                }`}
+            </dd>
+          </div>
+        )}
       </dl>
       {failed && (
         <p className="text-body-sm text-muted-foreground mt-2">

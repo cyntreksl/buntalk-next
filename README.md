@@ -952,6 +952,15 @@ The cart is kept in two places that stay in step:
 - **Empty cart:** "Your cart is empty" with Start shopping and category links.
 - Photos are a display copy kept with each cart line (`imageUrl`, from the server check). A Cake Studio design can carry a `previewUrl` (an https URL or a path on this site); `CartLineThumb` shows the preview, else the photo, else the product's first letter.
 
+### Cart totals (BUN-177)
+
+Every number the cart shows comes from the ERP, priced on the server:
+
+- **On every change** (and when the cart, mini-cart or checkout opens), the browser sends only product, size, quantity and design to `POST /api/cart/validate`. The server reads live ERP prices and asks the ERP scheme engine for the basket (`priceCart()` → `POST /prices/quote`). Prices, discounts or totals sent by the browser are ignored (tested in `app/api/cart/validate/route.test.ts`).
+- **What's shown:** each line's price and its offer, every offer the ERP applied with what it saved, free items, the subtotal, the total and **"You save"** (the ERP's total discount, plus any free items).
+- **Price changes:** when a line's ERP price is different from what the cart showed (changed in the ERP, an old cart, or the customer's own price), the cart says so ("The price of Fish bun changed from LKR 120.00 to LKR 110.00.") and the totals follow the ERP (`lib/cart/changes.ts`).
+- **Orders:** placing an order prices the cart again on the server, and the ERP re-prices the order itself. If its total differs, the ERP refuses it and the team is alerted (BUN-164).
+
 ### Pricing
 
 The storefront never calculates a price. It shows and charges exactly what the ERP returns.
