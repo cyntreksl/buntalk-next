@@ -944,6 +944,14 @@ The cart is kept in two places that stay in step:
 - **Quantity limits** (`lib/cart/limits.ts`): every line is 1 to 99. When the ERP sends online limits for the product or size (min, max, step; ticket BUN-259), those apply too. Adding counts what's already in the cart ("You can order up to 5 of this item"). The product page and cart quantity controls stop at the limit. A saved line over its limit is lowered when the cart is checked, with a notice. Placing an order never changes a quantity silently: it's refused with `cart_changed`.
 - **Cake Studio items:** a line can carry a Cake Studio design (`customization`: design id and a short summary). Each design is its own line. A customizable product can't be added without a design ("Please design this cake in Cake Studio first"). Ordering designed cakes is refused until the design can be sent to the ERP (BUN-184, ERP ticket BUN-252).
 
+### Cart page and mini-cart (BUN-176)
+
+- **Mini-cart drawer** (`features/cart/MiniCartDrawer.tsx`, in the app providers): opens from the right after "Add to cart" (product page and product cards), titled "Added to your cart" with the new line highlighted. Each line has its photo, size or design, quantity stepper, line price and Remove. Totals come from the server (ERP prices and offers). Buttons: Checkout, View cart, Continue shopping. Esc, the close button or going to another page closes it; focus returns to the button that opened it.
+- **Cart page** (`/cart`, `CartContents`): each line shows the photo (the size's own photo, else the product's), the name (links to the product), the size, a **Cake Studio design** block with the chosen options and its preview picture, the unit price, any offer on the line, a quantity stepper (within the line's limits), the line price and Remove. An **order summary** (sticky on desktop) shows the subtotal, each ERP offer, the **estimated total** and **Proceed to checkout**; delivery is confirmed at checkout.
+- **No reloads:** changing a quantity or removing a line updates the cart at once, and the server re-prices it from the ERP a moment later.
+- **Empty cart:** "Your cart is empty" with Start shopping and category links.
+- Photos are a display copy kept with each cart line (`imageUrl`, from the server check). A Cake Studio design can carry a `previewUrl` (an https URL or a path on this site); `CartLineThumb` shows the preview, else the photo, else the product's first letter.
+
 ### Pricing
 
 The storefront never calculates a price. It shows and charges exactly what the ERP returns.

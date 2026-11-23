@@ -38,6 +38,12 @@ export { MAX_CART_LINES, MAX_QUANTITY } from "@/lib/cart/limits";
 export const customizationSchema = z.object({
   designId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
   summary: z.array(z.string().trim().min(1).max(80)).max(10).default([]),
+  /** Picture of the design, shown in the cart (BUN-176). An https URL or a path on this site. */
+  previewUrl: z
+    .string()
+    .max(500)
+    .regex(/^(https:\/\/|\/(?!\/))/)
+    .optional(),
 });
 export type Customization = z.infer<typeof customizationSchema>;
 
@@ -68,6 +74,8 @@ export type PricedCartLine = {
   variant?: string;
   /** Cake Studio design (customizable products). */
   customization?: Customization;
+  /** The size's photo, else the product's main photo (BUN-176). */
+  imageUrl?: string;
   unitPrice: number;
   /** Within the line's limits (see `adjusted`). */
   quantity: number;
@@ -136,6 +144,7 @@ function priceLine(
     name: product.name,
     variant: sku && sku.options.length > 0 ? variantLabel(sku.options) : undefined,
     customization,
+    imageUrl: sku?.imageUrl ?? product.imageUrls?.[0],
     unitPrice,
     quantity,
     limits,

@@ -321,7 +321,8 @@ export type SavedCartLine = {
   skuId?: string;
   name: string;
   variant?: string;
-  customization?: { designId: string; summary: string[] };
+  customization?: { designId: string; summary: string[]; previewUrl?: string };
+  imageUrl?: string;
   unitPrice: number;
   quantity: number;
 };

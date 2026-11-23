@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore, type ReactNode } from "react";
-import { Button, Card, QuantityStepper, Skeleton } from "@/components/ui";
+import { Card, QuantityStepper, Skeleton } from "@/components/ui";
 import { MAX_QUANTITY } from "@/lib/cart/limits";
 import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
+import { CartLineThumb } from "./CartLineThumb";
 import { useCartStore } from "./store";
 import { removedNoticeText, useServerCart, type ServerCartState } from "./useServerCart";
 
@@ -74,67 +76,103 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
   return (
     <div className="flex flex-col gap-4">
       {notice}
-      <ul className="flex flex-col gap-3">
-        {items.map((item) => {
-          const pricing = server.lines[item.key];
-          return (
-            <li key={item.key}>
-              <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-col">
-                  <span className="font-bold">{item.name}</span>
-                  {item.variant && (
-                    <span className="text-body-sm text-muted-foreground">{item.variant}</span>
-                  )}
-                  {/* Cake Studio design summary (BUN-184). */}
-                  {item.customization && (
-                    <span className="text-body-sm text-muted-foreground">
-                      Cake Studio design
-                      {item.customization.summary.length > 0 &&
-                        `: ${item.customization.summary.join(" · ")}`}
-                    </span>
-                  )}
-                  <span className="text-body-sm text-muted-foreground">
-                    {formatPrice(item.unitPrice, currency)} each
-                  </span>
-                  {pricing && pricing.discount > 0 && (
-                    <span className="text-body-sm text-success font-semibold">
-                      {pricing.schemes.map((s) => s.name).join(", ") || "Offer"}: −
-                      {formatPrice(pricing.discount, currency)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <QuantityStepper
-                    size="sm"
-                    value={item.quantity}
-                    onChange={(quantity) => setQuantity(item.key, quantity)}
-                    // The line's allowed quantities, from the server check (ERP limits, BUN-259).
-                    min={pricing?.limits.min ?? 1}
-                    max={pricing?.limits.max ?? MAX_QUANTITY}
-                    label={`Quantity of ${item.name}${item.variant ? ` (${item.variant})` : ""}`}
-                  />
-                  <span className="w-24 text-right font-bold">
-                    {formatPrice(
-                      pricing?.lineSubtotal ?? lineTotal(item.unitPrice, item.quantity),
-                      currency,
-                    )}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeItem(item.key)}
-                    aria-label={`Remove ${item.name}`}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <ul className="flex flex-col gap-3" aria-label="Items in your cart">
+          {items.map((item) => {
+            const pricing = server.lines[item.key];
+            const label = `${item.name}${item.variant ? ` (${item.variant})` : ""}`;
+            return (
+              <li key={item.key}>
+                <Card padding="sm" className="flex gap-4">
+                  <Link
+                    href={`/product/${item.productSlug}`}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="shrink-0"
                   >
-                    Remove
-                  </Button>
-                </div>
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
-      <CartTotals server={server} className="self-stretch sm:ml-auto sm:w-80" />
-      {footer}
+                    <CartLineThumb item={item} />
+                  </Link>
+                  <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <Link
+                        href={`/product/${item.productSlug}`}
+                        className="hover:text-primary font-bold"
+                      >
+                        {item.name}
+                      </Link>
+                      {item.variant && (
+                        <span className="text-body-sm text-muted-foreground">{item.variant}</span>
+                      )}
+                      {/* Cake Studio design: the options chosen (BUN-176, BUN-184). */}
+                      {item.customization && (
+                        <div className="mt-1 flex flex-col gap-1">
+                          <span className="text-caption text-primary font-bold tracking-wider uppercase">
+                            Cake Studio design
+                          </span>
+                          {item.customization.summary.length > 0 && (
+                            <ul className="flex flex-wrap gap-1">
+                              {item.customization.summary.map((option) => (
+                                <li
+                                  key={option}
+                                  className="bg-surface-muted text-caption rounded-full px-2 py-0.5"
+                                >
+                                  {option}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                      <span className="text-body-sm text-muted-foreground">
+                        {formatPrice(item.unitPrice, currency)} each
+                      </span>
+                      {pricing && pricing.discount > 0 && (
+                        <span className="text-body-sm text-success font-semibold">
+                          {pricing.schemes.map((s) => s.name).join(", ") || "Offer"}: −
+                          {formatPrice(pricing.discount, currency)}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.key)}
+                        aria-label={`Remove ${label}`}
+                        className="text-body-sm text-muted-foreground hover:text-danger mt-1 self-start font-semibold underline-offset-2 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                      <span className="font-bold">
+                        {formatPrice(
+                          pricing?.lineSubtotal ?? lineTotal(item.unitPrice, item.quantity),
+                          currency,
+                        )}
+                      </span>
+                      <QuantityStepper
+                        size="sm"
+                        value={item.quantity}
+                        onChange={(quantity) => setQuantity(item.key, quantity)}
+                        // The line's allowed quantities, from the server check (ERP limits, BUN-259).
+                        min={pricing?.limits.min ?? 1}
+                        max={pricing?.limits.max ?? MAX_QUANTITY}
+                        label={`Quantity of ${label}`}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+        <Card className="flex flex-col gap-4 lg:sticky lg:top-(--sticky-offset)">
+          <h2 className="text-h4">Order summary</h2>
+          <CartTotals server={server} totalLabel="Estimated total" />
+          <p className="text-body-sm text-muted-foreground">
+            Delivery and any final offers are confirmed at checkout.
+          </p>
+          {footer}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -144,7 +182,16 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
  * free items, and the total. All numbers come from the server; a placeholder
  * shows while it re-prices.
  */
-export function CartTotals({ server, className }: { server: ServerCartState; className?: string }) {
+export function CartTotals({
+  server,
+  className,
+  totalLabel = "Total",
+}: {
+  server: ServerCartState;
+  className?: string;
+  /** "Estimated total" on the cart page (delivery comes at checkout). */
+  totalLabel?: string;
+}) {
   const { totals, currency } = server;
   const checking = server.status === "checking";
   const failed = server.status === "error";
@@ -190,7 +237,7 @@ export function CartTotals({ server, className }: { server: ServerCartState; cla
             </div>
           ))}
         <div className="border-border text-body-lg flex justify-between gap-4 border-t pt-2 font-bold">
-          <dt>Total</dt>
+          <dt>{totalLabel}</dt>
           <dd>{failed ? "—" : amount(totals?.total)}</dd>
         </div>
       </dl>
