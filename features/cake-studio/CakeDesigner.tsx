@@ -38,8 +38,8 @@ import type { CakeDesign, CakeQuote } from "@/lib/erp";
 import { cx, formatPrice } from "@/lib/utils";
 import { useCartStore } from "@/features/cart/store";
 import { useAddToCart } from "@/features/cart/useAddToCart";
-import { Cake3D, shrinkPng } from "./Cake3D";
-import type { CakeGrab, CakeView } from "./scene/CakeScene";
+import { Cake3D, shrinkPng, type CakePicture } from "./Cake3D";
+import type { CakeView } from "./scene/CakeScene";
 
 const LKR = (n: number) => formatPrice(n, "LKR");
 const impact = (n: number | null | undefined) =>
@@ -307,8 +307,8 @@ function Designer({
     /** The price shown before saving, when the ERP's price at saving was different. */
     shownTotal?: number;
   } | null>(null);
-  const grab = useRef<CakeGrab | null>(null);
-  const onGrab = useCallback((g: CakeGrab | null) => {
+  const grab = useRef<CakePicture | null>(null);
+  const onGrab = useCallback((g: CakePicture | null) => {
     grab.current = g;
   }, []);
 
@@ -399,7 +399,7 @@ function Designer({
   /** A picture of the 3D cake for the saved design; none if it can't be taken. */
   async function previewPicture(): Promise<string | undefined> {
     try {
-      const png = grab.current?.();
+      const png = await grab.current?.();
       if (!png) return undefined;
       const small = await shrinkPng(png);
       return small.length < 1_900_000 ? small : undefined;
