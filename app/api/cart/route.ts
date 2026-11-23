@@ -11,13 +11,16 @@ import { getDb } from "@/lib/db";
  *   GET /api/cart
  *   200 { items: [{ key, productSlug, skuId, name, variant, customization, unitPrice, quantity }], updatedAt }
  *
- *   PUT /api/cart   { items: [...] }   replaces the saved cart
+ *   PUT /api/cart   { items: [...], baseUpdatedAt }   replaces the saved cart
  *   200 { items, updatedAt }           cleaned: merged lines, 1–99 each, at most 50 lines
+ *   409 { error: "conflict", items, updatedAt }   the saved cart changed since
+ *       baseUpdatedAt (sign-in merge, another device): combine and save again
  *
  * A guest's cart is found by the random token in the httpOnly `buntalk_cart`
  * cookie (set on the first save). Once sign-in exists, a signed-in customer's
  * cart is saved against the customer instead, so it follows them to other
- * devices (merging on sign-in is BUN-178).
+ * devices. At sign-in the guest cart is merged into it (BUN-178,
+ * lib/cart/signin.server.ts).
  *
  * This only stores the cart. Lines are checked with the ERP when they're
  * added (POST /api/cart/items) and when the cart opens (POST /api/cart/validate).
@@ -37,7 +40,15 @@ export async function GET() {
   return response(await loadCart(await getDb(), { customerId, tokenHash }));
 }
 
-const bodySchema = z.object({ items: z.array(savedLineSchema).max(MAX_CART_LINES * 2) });
+const bodySchema = z.object({
+  items: z.array(savedLineSchema).max(MAX_CART_LINES * 2),
+  /**
+   * The saved cart's `updatedAt` this browser last saw (null: never). When the
+   * saved cart has changed since, the save is refused with 409 and the current
+   * saved cart, so nothing is overwritten (BUN-178). Leave it out to always save.
+   */
+  baseUpdatedAt: z.iso.datetime().nullable().optional(),
+});
 
 export async function PUT(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
@@ -52,5 +63,16 @@ export async function PUT(request: Request) {
   // Don't start a saved cart (or set a cookie) just to save an empty one.
   if (!customerId && lines.length === 0 && !(await readCartTokenHash())) return response(null);
   const tokenHash = customerId ? null : await ensureCartTokenHash();
-  return response(await saveCart(await getDb(), { customerId, tokenHash }, lines));
+  const { baseUpdatedAt } = parsed.data;
+  const saved = await saveCart(await getDb(), { customerId, tokenHash }, lines, {
+    baseUpdatedAt:
+      baseUpdatedAt === undefined ? undefined : baseUpdatedAt ? new Date(baseUpdatedAt) : null,
+  });
+  if (saved.conflict) {
+    return Response.json(
+      { error: "conflict", items: saved.lines, updatedAt: saved.updatedAt.toISOString() },
+      { status: 409, headers },
+    );
+  }
+  return response(saved);
 }

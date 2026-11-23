@@ -8,6 +8,11 @@ import { cookies } from "next/headers";
  * are set up in BUN-186. Keep all auth logic behind this folder so pages and
  * features never talk to the auth provider directly.
  *
+ * After a successful sign-in (BUN-186): call `mergeCartOnSignIn(customerId)`
+ * (lib/cart/signin.server.ts) on the server so the guest cart joins the
+ * customer's saved cart (BUN-178), and `syncCartNow()` (features/cart/CartSync)
+ * in the browser to show it straight away.
+ *
  * Reading cookies() makes the calling component render per request, so
  * anything that uses the session is never cached for other users. Call it
  * from a component inside <Suspense>.

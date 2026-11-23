@@ -26,6 +26,8 @@ type CartState = {
   items: CartItem[];
   /** True while there are changes the server copy doesn't have yet (see CartSync). */
   dirty: boolean;
+  /** The saved cart's version (`updatedAt`) this browser last loaded or saved; null if none. */
+  serverUpdatedAt: string | null;
   /** Adds to a line (or creates it). Prefer setLine with the server's checked quantity. */
   addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   /** Puts a checked line in the cart with exactly this quantity (after POST /api/cart/items). */
@@ -35,7 +37,10 @@ type CartState = {
   /** Replace the cart with the server-priced lines (see features/cart/useServerCart.ts). */
   replaceItems: (items: CartItem[]) => void;
   /** Take the saved server cart (CartSync); not a change to send back. */
-  applyServer: (items: CartItem[]) => void;
+  applyServer: (items: CartItem[], updatedAt: string | null) => void;
+  /** Lines combined with a newer saved cart: keep them, and save them against that version. */
+  rebase: (items: CartItem[], updatedAt: string | null) => void;
+  setServerUpdatedAt: (updatedAt: string | null) => void;
   markSynced: () => void;
   clear: () => void;
 };
@@ -56,6 +61,7 @@ export const useCartStore = create<CartState>()(
     (set) => ({
       items: [],
       dirty: false,
+      serverUpdatedAt: null,
       addItem: (item, quantity = 1) =>
         set((state) => {
           const existing = state.items.find((i) => i.key === item.key);
@@ -100,7 +106,9 @@ export const useCartStore = create<CartState>()(
       removeItem: (key) =>
         set((state) => ({ dirty: true, items: state.items.filter((i) => i.key !== key) })),
       replaceItems: (items) => set({ items, dirty: true }),
-      applyServer: (items) => set({ items, dirty: false }),
+      applyServer: (items, updatedAt) => set({ items, dirty: false, serverUpdatedAt: updatedAt }),
+      rebase: (items, updatedAt) => set({ items, dirty: true, serverUpdatedAt: updatedAt }),
+      setServerUpdatedAt: (updatedAt) => set({ serverUpdatedAt: updatedAt }),
       markSynced: () => set({ dirty: false }),
       clear: () => set({ items: [], dirty: true }),
     }),
@@ -108,7 +116,11 @@ export const useCartStore = create<CartState>()(
       name: "buntalk-cart",
       storage: createJSONStorage(() => localStorage),
       version: 2,
-      partialize: (state) => ({ items: state.items, dirty: state.dirty }),
+      partialize: (state) => ({
+        items: state.items,
+        dirty: state.dirty,
+        serverUpdatedAt: state.serverUpdatedAt,
+      }),
       migrate: (persisted, version) => {
         const state = persisted as { items?: Record<string, unknown>[]; dirty?: boolean };
         // v0 carts (before sizes) keyed lines by product slug in `sku`.
