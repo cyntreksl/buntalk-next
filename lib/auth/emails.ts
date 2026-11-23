@@ -63,3 +63,35 @@ export function alreadyRegistered(to: string, name: string, signInUrl: string): 
     ),
   };
 }
+
+/** "Reset your password": a link that works once, for 30 minutes (BUN-188). */
+export function resetPassword(to: string, name: string, url: string): Email {
+  return {
+    to,
+    subject: "Reset your Buntalk password",
+    ...layout(
+      `Hi ${name}, reset your password`,
+      [
+        "We got a request to reset the password for your Buntalk account. Choose a new one with the button below.",
+        "The link works once, for 30 minutes. If you didn't ask for this, you can ignore this email: your password stays the same.",
+      ],
+      { label: "Choose a new password", url },
+    ),
+  };
+}
+
+/** Sent after the password is reset or changed, so the owner notices if it wasn't them. */
+export function passwordChanged(to: string, name: string, forgotUrl: string): Email {
+  return {
+    to,
+    subject: "Your Buntalk password was changed",
+    ...layout(
+      `Hi ${name}, your password was changed`,
+      [
+        "The password for your Buntalk account was just changed, and you were signed out on your other devices.",
+        "If this wasn't you, reset your password now and contact us.",
+      ],
+      { label: "Reset my password", url: forgotUrl },
+    ),
+  };
+}

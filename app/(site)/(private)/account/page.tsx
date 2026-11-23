@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AccountTemplate } from "@/components/layout/templates";
 import { Card } from "@/components/ui";
 import { AccountGate } from "@/features/account/AccountGate";
+import { ChangePasswordForm } from "@/features/auth/ChangePasswordForm";
 import { SignOutButton } from "@/features/auth/SignOutButton";
 import { getSession, listSignInMethods } from "@/lib/auth";
 
@@ -42,6 +43,15 @@ async function Overview() {
           <SignOutButton everywhere variant="ghost" />
         </div>
       </Card>
+      {methods.some((m) => m.provider === "credential") && (
+        <Card padding="lg" className="flex flex-col gap-3">
+          <h2 className="text-h4">Change password</h2>
+          <p className="text-body-sm text-muted-foreground">
+            You&apos;ll stay signed in here. Your other devices will be signed out.
+          </p>
+          <ChangePasswordForm email={session.email} />
+        </Card>
+      )}
     </>
   );
 }
