@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { priceChanges, priceChangeText, type PriceChange } from "@/lib/cart/changes";
 import {
   validateCart,
   type AppliedScheme,
@@ -30,6 +31,8 @@ export type ServerCartState = {
   removed: RemovedNotice[];
   /** Lines whose quantity was over the limit and was lowered (names), for a notice. */
   adjusted: string[];
+  /** Lines whose ERP price is different from the one the cart showed (BUN-177). */
+  priceChanges: PriceChange[];
 };
 
 export type LinePricing = {
@@ -76,6 +79,7 @@ export function useServerCart(enabled: boolean): ServerCartState {
   });
   const [removed, setRemoved] = useState<RemovedNotice[]>([]);
   const [adjusted, setAdjusted] = useState<string[]>([]);
+  const [changes, setChanges] = useState<PriceChange[]>([]);
   // Cart signatures already sent to the server, so dropping lines doesn't trigger another check.
   const handled = useRef<string | null>(null);
 
@@ -115,6 +119,11 @@ export function useServerCart(enabled: boolean): ServerCartState {
             quantity,
           };
         });
+      // Prices the ERP changed since the cart last showed them: say so (latest per line).
+      const changed = priceChanges(sent, result.items);
+      if (changed.length > 0) {
+        setChanges((c) => [...c.filter((x) => !changed.some((n) => n.key === x.key)), ...changed]);
+      }
       const lowered = result.items.filter((i) => i.adjusted).map((i) => i.name);
       if (lowered.length > 0) setAdjusted((a) => [...new Set([...a, ...lowered])]);
       const nextSig = signature(next);
@@ -174,6 +183,7 @@ export function useServerCart(enabled: boolean): ServerCartState {
     freeItems: upToDate ? priced.freeItems : [],
     removed,
     adjusted,
+    priceChanges: changes,
   };
 }
 
@@ -190,4 +200,19 @@ export function removedNoticeText(removed: RemovedNotice[]): string | null {
   return soldOut
     ? `${names} ${removed.length === 1 ? "is" : "are"} sold out and ${verb} removed from your cart.`
     : `${names} ${removed.length === 1 ? "is" : "are"} no longer available online and ${verb} removed from your cart.`;
+}
+
+/**
+ * Everything the cart should tell the customer after the server check, in one
+ * line of text (cart page, mini-cart, checkout): removed items, lowered
+ * quantities and changed prices.
+ */
+export function cartNoticeText(server: ServerCartState): string | null {
+  const parts = [
+    removedNoticeText(server.removed),
+    server.adjusted.length > 0 &&
+      `The quantity of ${server.adjusted.join(", ")} was lowered to the most you can order.`,
+    priceChangeText(server.priceChanges, server.currency),
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : null;
 }

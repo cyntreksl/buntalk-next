@@ -10,7 +10,7 @@ import { CartTotals } from "./CartContents";
 import { CartLineThumb } from "./CartLineThumb";
 import { useMiniCart } from "./miniCart";
 import { selectCartCount, useCartStore } from "./store";
-import { removedNoticeText, useServerCart } from "./useServerCart";
+import { cartNoticeText, useServerCart } from "./useServerCart";
 
 /**
  * Mini-cart drawer (BUN-176). Opens from the right after "Add to cart": the
@@ -36,7 +36,7 @@ export function MiniCartDrawer() {
     if (open) close();
   }
 
-  const notice = removedNoticeText(server.removed);
+  const notice = cartNoticeText(server);
   const justAdded = items.some((i) => i.key === lastAddedKey);
 
   return (

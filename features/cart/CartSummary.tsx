@@ -7,7 +7,7 @@ import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import { CartTotals } from "./CartContents";
 import { useCartStore } from "./store";
-import { removedNoticeText, useServerCart } from "./useServerCart";
+import { cartNoticeText, useServerCart } from "./useServerCart";
 
 const subscribe = () => () => {};
 const useIsClient = () =>
@@ -28,7 +28,7 @@ export function CartSummary() {
   // Re-priced from the ERP on the server; the browser never adds up what is charged.
   const server = useServerCart(isClient);
   const { currency } = server;
-  const notice = removedNoticeText(server.removed);
+  const notice = cartNoticeText(server);
 
   return (
     <Card className="flex flex-col gap-4">
