@@ -47,6 +47,8 @@ export function seedCakeStudio() {
     price,
     // Heart isn't made in 3 kg.
     shape_ids: name === "3 kg" ? [shapes[0].id, shapes[1].id] : shapes.map((s) => s.id),
+    // BUN-180: the "Design your own cake" product size this cake size is sold as.
+    sku_link_id: `sku-studio-${name.replace(" ", "").toLowerCase()}`,
   }));
   const option = (kind, o) => ({
     id: nid(),
@@ -171,6 +173,7 @@ export function cakeMenu(studio) {
         s.shape_ids.map((id) => [String(id), money(s.price + shapeById.get(id).price)]),
       ),
       earliest: earliest(studio),
+      sku_link_id: s.sku_link_id ?? null,
     })),
     shapes: studio.shapes.map(({ id, name, model }) => ({ id, name, model })),
     options: Object.fromEntries(

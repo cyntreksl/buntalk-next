@@ -112,7 +112,7 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
       {product.customizable ? (
         <div className="flex flex-col gap-2">
           <Link
-            href={`/cake-studio?product=${encodeURIComponent(product.slug)}`}
+            href={`/cake-studio/${encodeURIComponent(product.slug)}`}
             className={buttonClasses({ size: "lg" })}
           >
             Customize in Cake Studio

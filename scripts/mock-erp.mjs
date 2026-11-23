@@ -40,6 +40,7 @@
  *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
 import { handleCakeStudio, patchCakeStudio, seedCakeStudio } from "./mock-erp-cake-studio.mjs";
+import { handleCakeStudioEmbed } from "./mock-erp-cake-studio-embed.mjs";
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -224,6 +225,8 @@ function seed() {
       price: price(5000),
       is_customisable: true,
       processing_time_hours: 72,
+      // BUN-180: sizes linked to Cake Studio sizes (sku_link_id on the cake sizes).
+      skus: [sku("STUDIO-2KG", "2 kg", 9000), sku("STUDIO-1KG", "1 kg", 5000)],
       attributes: [{ name: "Flavour", values: ["Chocolate", "Vanilla", "Red velvet"] }],
       tags: [
         { group: "Occasion", value: "Birthday" },
@@ -764,6 +767,15 @@ const server = createServer(async (req, res) => {
     } catch {
       return send(res, 404, { message: "Not Found" });
     }
+  }
+
+  // Cake Studio embed page (BUN-180), outside the API like the ERP's web routes.
+  const embed = await handleCakeStudioEmbed(state.cakeStudio, path, req.method, url, () =>
+    readBody(req),
+  );
+  if (embed) {
+    res.writeHead(embed.status, embed.headers);
+    return res.end(embed.body);
   }
 
   // Admin endpoints for tests

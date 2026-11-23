@@ -35,6 +35,10 @@ const serverSchema = z.object({
   ERP_WEBHOOK_SECRET: optional(z.string().min(16)),
   // Optional: Slack/Teams-compatible incoming webhook for order alerts ({ "text": … })
   ALERT_WEBHOOK_URL: optional(z.url()),
+  // Cake Studio embed (BUN-180): the ERP's embed page, e.g. https://erp.example.com/buntalk/cake-studio/embed
+  CAKE_STUDIO_EMBED_URL: optional(z.url()),
+  // Shared secret the storefront signs Cake Studio embed sessions with (HMAC-SHA256), at least 16 characters
+  CAKE_STUDIO_EMBED_SECRET: optional(z.string().min(16)),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
