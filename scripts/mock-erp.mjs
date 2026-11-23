@@ -882,6 +882,11 @@ const server = createServer(async (req, res) => {
   const q = url.searchParams;
 
   if (route.startsWith("/cake-studio/")) {
+    // POST /__mock/fail reaches Cake Studio too (BUN-183: "Try again" after a failed price).
+    if (state.failNext.count > 0) {
+      state.failNext.count--;
+      return send(res, state.failNext.status, { message: "Simulated ERP outage" });
+    }
     const body = req.method === "POST" ? await readBody(req) : null;
     const result = handleCakeStudio(state.cakeStudio, route, req.method, body);
     if (result) return send(res, result[0], result[1]);

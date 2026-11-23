@@ -91,6 +91,17 @@ describe("Cake Studio quotes", () => {
     expect(quote.summary.find((r) => r.label === "Message")?.value).toContain('"Happy 30th"');
   });
 
+  it("says when the cake can be ready and the notice behind it", async () => {
+    const menu = await getCakeStudioMenu();
+    expect(menu.rules.noticeHours).toBe(48);
+    const quote = await quoteCakeDesign(design());
+    expect(quote.earliestDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(quote.noticeHours).toBe(48);
+    // Before the ERP sends notice hours (BUN-263), or with a bad value: just the date.
+    patchCakeStudio(studio, { rules: { notice_hours: -5 } });
+    expect((await quoteCakeDesign(design())).noticeHours).toBeUndefined();
+  });
+
   it("passes on the ERP's message for a design it refuses", async () => {
     const error = await quoteCakeDesign({ ...design(), shape_id: 9999 }).catch((e) => e);
     expect(error).toBeInstanceOf(ErpValidationError);

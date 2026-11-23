@@ -188,6 +188,7 @@ export function cakeMenu(studio) {
     favourites: studio.favourites,
     rules: {
       is_open: studio.rules.is_open,
+      notice_hours: studio.rules.notice_hours,
       message_max: studio.rules.message_max,
       photo_max_kb: studio.rules.photo_max_kb,
       deck_prices: Object.fromEntries(
@@ -336,6 +337,7 @@ export function cakeQuote(studio, picks) {
       total: money(total / 100),
       summary,
       earliest_date: earliest(studio),
+      notice_hours: studio.rules.notice_hours,
     },
   };
 }
