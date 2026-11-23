@@ -209,6 +209,21 @@ The ERP already has Cake Studio for its own page (`DescribeCakeStudioMenu`, `Nor
 - **3D:** the 3D preview is drawn from this data, as the ERP's `cake-scene.tsx` does: shape `model`, size `tiers`, option `colour` / `layer_colours` / `style`, `needs_drip`. There are no 3D asset files; if model files are added later, add an `asset_url` per option.
 - **Changes:** when the Cake Studio setup changes, the ERP calls the revalidate webhook with `{ "type": "cake_studio" }`.
 
+### Cake Studio embed (BUN-180; ERP side: BUN-261)
+
+- **Page:** `GET /cake-studio/embed?session={token}` (ERP web route, not the API): Cake Studio without the ERP's own header and send form, sending `Content-Security-Policy: frame-ancestors {storefront origins}`.
+- **Session:** `base64url(JSON).base64url(HMAC-SHA256(that, secret))`, signed by the storefront (`lib/cake-studio/session.ts`). Payload `{ v: 1, origin, exp, customer?, preselect?: { product_id?, sku_id?, size_id? } }`. The ERP refuses (403) a bad signature, an expired session or an origin not on its list.
+- **Messages:** `window.postMessage` with `{ source: "buntalk-cake-studio", type, … }` from the ERP, only to the session origin:
+  - `ready`, sent at start and again in answer to `ping`;
+  - `resize { height }`;
+  - `design { total, summary }`;
+  - `saved { design_id, total, summary, preview_url? }` on "Add to cart";
+  - `error { message }`.
+
+  From the storefront: `{ source: "buntalk-storefront", type: "ping" | "preselect", size_id? }`, sent only to the ERP's origin.
+
+- **Pre-selection:** `GET /cake-studio/menu` returns `sku_link_id` on each size (the product size it's sold as), so the storefront can choose the size for a product.
+
 ### Orders (BUN-164; ERP side: BUN-244)
 
 The storefront saves every order first, then sends it with two idempotent writes. Each write's `Idempotency-Key` is derived from the order, and the same key is used on every retry.
@@ -333,35 +348,36 @@ The storefront links each storefront customer to exactly one ERP customer, and s
 
 Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP side)". Each ticket is linked to the storefront ticket it blocks. Add a new ticket there for any new gap.
 
-| Ticket  | ERP work                                                                  | Blocks                    |
-| ------- | ------------------------------------------------------------------------- | ------------------------- |
-| BUN-233 | API foundation: routes, machine credential, error format                  | BUN-159, BUN-230          |
-| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`)                  | BUN-160                   |
-| BUN-235 | Slugs on products and categories                                          | BUN-160, BUN-246          |
-| BUN-236 | Category parent and display order                                         | BUN-160                   |
-| BUN-237 | Preparation (processing) time                                             | BUN-160                   |
-| BUN-238 | Public image URLs, image host, extra photos                               | BUN-160                   |
-| BUN-239 | "Show on the website" switch                                              | BUN-161                   |
-| BUN-240 | Featured products and home banners                                        | BUN-157                   |
-| BUN-241 | Online price channel, resolved and compare-at prices                      | BUN-162, BUN-174          |
-| BUN-242 | Schemes and basket price quote                                            | BUN-163, BUN-177          |
-| BUN-243 | Customer create/match and read                                            | BUN-166, 192, 195, 196    |
-| BUN-244 | Online orders: model, place, status                                       | BUN-164, BUN-165, BUN-201 |
-| BUN-245 | Sales outlets endpoint                                                    | BUN-201                   |
-| BUN-246 | Revalidate webhook calls from the ERP                                     | BUN-167                   |
-| BUN-247 | Customer-specific prices (customer group price levels)                    | BUN-162, BUN-196          |
-| BUN-248 | Promotions scheme engine (shared by POS and web)                          | BUN-163, BUN-208, BUN-242 |
-| BUN-250 | Ingredients, allergens and dietary tags per product                       | BUN-249                   |
-| BUN-251 | Delivery areas, delivery fees and time slots                              | BUN-164, BUN-199          |
-| BUN-252 | Cake Studio cakes as lines of an online order                             | BUN-164, BUN-184          |
-| BUN-253 | Online order fulfilment workflow and status webhooks                      | BUN-165, BUN-194          |
-| BUN-254 | Update storefront customers: profile, addresses, merges                   | BUN-166, BUN-193, BUN-198 |
-| BUN-255 | Catalog change feed (`updated_since`) for the scheduled check             | BUN-167                   |
-| BUN-256 | Product popularity and publish date (sorting)                             | BUN-169                   |
-| BUN-257 | Product page details: short description, photo per size, weight, servings | BUN-171                   |
-| BUN-258 | Product tags for filters (occasion and other tag groups)                  | BUN-173                   |
-| BUN-259 | Online order quantity limits per product and size (min, max, step)        | BUN-175                   |
-| BUN-260 | Cake Studio storefront API: menu, design quote, saved designs by ID       | BUN-179, BUN-180–185      |
+| Ticket  | ERP work                                                                        | Blocks                    |
+| ------- | ------------------------------------------------------------------------------- | ------------------------- |
+| BUN-233 | API foundation: routes, machine credential, error format                        | BUN-159, BUN-230          |
+| BUN-234 | Catalog endpoints (categories, products, SKU `in_stock`)                        | BUN-160                   |
+| BUN-235 | Slugs on products and categories                                                | BUN-160, BUN-246          |
+| BUN-236 | Category parent and display order                                               | BUN-160                   |
+| BUN-237 | Preparation (processing) time                                                   | BUN-160                   |
+| BUN-238 | Public image URLs, image host, extra photos                                     | BUN-160                   |
+| BUN-239 | "Show on the website" switch                                                    | BUN-161                   |
+| BUN-240 | Featured products and home banners                                              | BUN-157                   |
+| BUN-241 | Online price channel, resolved and compare-at prices                            | BUN-162, BUN-174          |
+| BUN-242 | Schemes and basket price quote                                                  | BUN-163, BUN-177          |
+| BUN-243 | Customer create/match and read                                                  | BUN-166, 192, 195, 196    |
+| BUN-244 | Online orders: model, place, status                                             | BUN-164, BUN-165, BUN-201 |
+| BUN-245 | Sales outlets endpoint                                                          | BUN-201                   |
+| BUN-246 | Revalidate webhook calls from the ERP                                           | BUN-167                   |
+| BUN-247 | Customer-specific prices (customer group price levels)                          | BUN-162, BUN-196          |
+| BUN-248 | Promotions scheme engine (shared by POS and web)                                | BUN-163, BUN-208, BUN-242 |
+| BUN-250 | Ingredients, allergens and dietary tags per product                             | BUN-249                   |
+| BUN-251 | Delivery areas, delivery fees and time slots                                    | BUN-164, BUN-199          |
+| BUN-252 | Cake Studio cakes as lines of an online order                                   | BUN-164, BUN-184          |
+| BUN-253 | Online order fulfilment workflow and status webhooks                            | BUN-165, BUN-194          |
+| BUN-254 | Update storefront customers: profile, addresses, merges                         | BUN-166, BUN-193, BUN-198 |
+| BUN-255 | Catalog change feed (`updated_since`) for the scheduled check                   | BUN-167                   |
+| BUN-256 | Product popularity and publish date (sorting)                                   | BUN-169                   |
+| BUN-257 | Product page details: short description, photo per size, weight, servings       | BUN-171                   |
+| BUN-258 | Product tags for filters (occasion and other tag groups)                        | BUN-173                   |
+| BUN-259 | Online order quantity limits per product and size (min, max, step)              | BUN-175                   |
+| BUN-260 | Cake Studio storefront API: menu, design quote, saved designs by ID             | BUN-179, BUN-180–185      |
+| BUN-261 | Cake Studio embed mode: framing rules, messages, signed sessions, pre-selection | BUN-180                   |
 
 ## 6. Open questions for the ERP team
 

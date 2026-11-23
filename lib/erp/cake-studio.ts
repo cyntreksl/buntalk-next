@@ -68,6 +68,8 @@ const erpCakeMenuSchema = z.object({
       shape_prices: z.record(z.string(), money),
       /** Earliest date it can be ready (YYYY-MM-DD). */
       earliest: z.string(),
+      /** NEW (BUN-180, ticket BUN-261): the product size (SKU link_id) this cake size is sold as. */
+      sku_link_id: z.string().nullable().optional(),
     }),
   ),
   shapes: z.array(z.object({ id, name: z.string(), model: z.string() })),
@@ -150,6 +152,8 @@ export type CakeStudioMenu = {
     /** Lowest price of this size in any shape ("From …"). */
     fromPrice: number;
     earliest: string;
+    /** The product size (SKU) this cake size is sold as, if linked in the ERP. */
+    skuLinkId?: string;
   }[];
   shapes: { id: number; name: string; model: string }[];
   options: Record<
@@ -211,6 +215,7 @@ export function toCakeStudioMenu(m: z.infer<typeof erpCakeMenuSchema>): CakeStud
         shapePrices: s.shape_prices,
         fromPrice: prices.length > 0 ? Math.min(...prices) : 0,
         earliest: s.earliest,
+        skuLinkId: orUndefined(s.sku_link_id),
       };
     }),
     shapes: m.shapes,

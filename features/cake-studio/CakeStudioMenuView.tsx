@@ -51,7 +51,14 @@ const sections: { kind: CakeOptionKind; title: string; hint?: string }[] = [
  * with its price and colour, occasions and favourites. Nothing here is set in
  * the storefront: change it in the ERP and the page follows.
  */
-export function CakeStudioMenuView({ menu }: { menu: CakeStudioMenu }) {
+export function CakeStudioMenuView({
+  menu,
+  highlightSizeId,
+}: {
+  menu: CakeStudioMenu;
+  /** The size of the cake the customer came from (BUN-180). */
+  highlightSizeId?: number;
+}) {
   const shapeName = new Map(menu.shapes.map((s) => [String(s.id), s.name]));
   return (
     <div className="flex flex-col gap-10">
@@ -63,7 +70,13 @@ export function CakeStudioMenuView({ menu }: { menu: CakeStudioMenu }) {
           {menu.sizes.map((size) => (
             <li
               key={size.id}
-              className="border-border bg-surface flex flex-col gap-2 rounded-xl border p-4"
+              aria-current={size.id === highlightSizeId ? "true" : undefined}
+              className={cx(
+                "bg-surface flex flex-col gap-2 rounded-xl border p-4",
+                size.id === highlightSizeId
+                  ? "border-primary ring-primary ring-2"
+                  : "border-border",
+              )}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-h4">{size.name}</span>

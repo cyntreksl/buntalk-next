@@ -28,7 +28,7 @@ export function ProductCardAction({
   if (product.customizable) {
     return (
       <Link
-        href={`/cake-studio?product=${encodeURIComponent(product.slug)}`}
+        href={`/cake-studio/${encodeURIComponent(product.slug)}`}
         className={cx(base, linkClasses)}
         aria-label={`Customize ${product.name}`}
       >
