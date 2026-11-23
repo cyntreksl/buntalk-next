@@ -72,14 +72,6 @@ export async function placeOrder(
       "cart_changed",
     );
   }
-  // Cake Studio designs can't be sent to the ERP yet (BUN-184, ERP ticket BUN-252).
-  if (cart.items.some((i) => i.customization)) {
-    throw new OrderError(
-      "Cake Studio cakes can't be ordered online yet. Please remove them from your cart.",
-      409,
-      "customization_unsupported",
-    );
-  }
 
   // TODO(delivery fees ticket): delivery fees come from the ERP / delivery rules; none yet.
   const deliveryFee = 0;
@@ -109,6 +101,10 @@ export async function placeOrder(
           discount: i.discount,
           lineTotal: i.lineTotal,
           schemeIds: i.schemes.map((s) => s.id),
+          // A designed cake: the full design goes with the order to the ERP (BUN-184).
+          ...(i.cake && {
+            cake: { ...i.cake, previewUrl: i.customization?.previewUrl },
+          }),
         })),
         appliedSchemes: cart.appliedSchemes,
         freeItems: cart.freeItems,

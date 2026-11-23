@@ -10,6 +10,7 @@ import { CartTotals } from "./CartContents";
 import { CartLineThumb } from "./CartLineThumb";
 import { useMiniCart } from "./miniCart";
 import { selectCartCount, useCartStore } from "./store";
+import { editDesignHref } from "./cake";
 import { cartNoticeText, useServerCart } from "./useServerCart";
 
 /**
@@ -101,7 +102,7 @@ export function MiniCartDrawer() {
                     {item.name}
                   </Link>
                   {(item.variant || item.customization) && (
-                    <span className="text-caption text-muted-foreground">
+                    <span className="text-caption text-muted-foreground line-clamp-2">
                       {[
                         item.variant,
                         item.customization &&
@@ -110,6 +111,15 @@ export function MiniCartDrawer() {
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
+                  )}
+                  {item.customization && (
+                    <Link
+                      href={editDesignHref(item)!}
+                      className="text-caption text-primary self-start font-semibold underline"
+                    >
+                      Edit design
+                      <span className="sr-only">: {item.name}</span>
+                    </Link>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <QuantityStepper

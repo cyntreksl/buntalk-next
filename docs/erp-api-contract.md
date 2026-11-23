@@ -252,7 +252,23 @@ The storefront saves every order first, then sends it with two idempotent writes
       "unit_price": "120.00",
       "discount": "120.00",
       "line_total": "240.00",
-      "scheme_ids": ["…"]
+      "scheme_ids": ["…"],
+      "cake_design": null
+    },
+    {
+      "product_link_id": "…",
+      "sku_link_id": "…",
+      "quantity": 1,
+      "unit_price": "4350.00",
+      "discount": "0.00",
+      "line_total": "4350.00",
+      "scheme_ids": [],
+      "cake_design": {
+        "design_id": "…",
+        "config": { "size_id": 4, "shape_id": 1, "sponge_id": 7, "…": "…" },
+        "summary": ["Inside: Chocolate sponge", "Message: \"Happy 30th\", Script"],
+        "preview_url": "https://…"
+      }
     }
   ],
   "applied_scheme_ids": ["…"],
@@ -275,7 +291,9 @@ For pickup, `fulfilment` is `{ "type": "pickup", "outlet_link_id": "…", "date"
 | 422                        | Invalid data: **rejected**, team alerted                                                                 |
 | 401/403, 429, 5xx, timeout | Temporary: **failed**, retried with the same key (1, 2, 4 … minutes, up to 8 attempts)                   |
 
-Delivery fees, areas and slots don't exist in the ERP yet (BUN-251), so the storefront sends `delivery_fee: "0.00"`. Cake Studio cakes as order lines need BUN-252.
+Delivery fees, areas and slots don't exist in the ERP yet (BUN-251), so the storefront sends `delivery_fee: "0.00"`.
+
+**Cake Studio cakes (BUN-184; ERP side: BUN-252):** a designed cake is a line of the Cake Studio product, in the size its cake size is sold as (`sizes[].sku_link_id`), with `cake_design`: the saved design's `design_id`, the full `config` (the design request), the `summary` lines and the `preview_url`. Its `unit_price` is the design's Cake Studio total (as `POST /cake-studio/quote` prices it); cake lines get no offers and aren't sent to `/prices/quote`. The ERP creates the cake request from it and links it to the line, checks the price (409 if it differs) and includes cake lines in the total. Other lines send `cake_design: null`.
 
 ### Catalog change webhook (BUN-167; ERP side: BUN-246)
 

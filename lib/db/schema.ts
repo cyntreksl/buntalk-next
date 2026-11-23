@@ -1,3 +1,4 @@
+import type { CakeDesign } from "@/lib/cake-studio/design-schema";
 import {
   boolean,
   index,
@@ -79,6 +80,17 @@ export type OrderPayment = {
 };
 
 /** One order line as priced by the ERP at checkout (a snapshot; never re-read from the cart). */
+/** A designed cake on an order line (BUN-184): the saved design, as sent to the ERP. */
+export type OrderCake = {
+  /** The ERP's saved design id (Cake Studio). */
+  designId: string;
+  /** The full design: every pick (the ERP's CakeDesignRequest). */
+  config: CakeDesign;
+  /** "Label: value" lines, for people reading the order. */
+  summary: string[];
+  previewUrl?: string;
+};
+
 export type OrderLine = {
   productId: string | null;
   productSlug: string;
@@ -91,6 +103,8 @@ export type OrderLine = {
   discount: number;
   lineTotal: number;
   schemeIds: string[];
+  /** Set when the line is a Cake Studio cake. */
+  cake?: OrderCake;
 };
 
 export type OrderScheme = { id: string; name: string; description?: string; discount: number };

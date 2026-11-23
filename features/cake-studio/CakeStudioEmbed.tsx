@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useAddToCart } from "@/features/cart/useAddToCart";
 import { Card, Spinner, buttonClasses } from "@/components/ui";
 import { readEmbedMessage, STOREFRONT_SOURCE, type EmbedMessage } from "@/lib/cake-studio/messages";
 import { formatPrice } from "@/lib/utils";
@@ -21,8 +22,9 @@ type Saved = Extract<EmbedMessage, { type: "saved" }>;
  *   only in the agreed shapes (lib/cake-studio/messages.ts); messages to the
  *   embed go only to that origin, never "*".
  * - The frame grows with its content ("resize"), shows the live price
- *   ("design"), and when the customer saves a design ("saved") the storefront
- *   shows it with a link (adding it to the cart is BUN-184).
+ *   ("design"), and when the customer presses "Add to cart" there ("saved")
+ *   the storefront adds that saved design to the cart (BUN-184) and shows it
+ *   with a link.
  * - If the embed doesn't answer within 15 seconds, a link to the menu is shown.
  */
 export function CakeStudioEmbed({
@@ -45,6 +47,31 @@ export function CakeStudioEmbed({
   const [total, setTotal] = useState<number | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { add } = useAddToCart();
+
+  // The ERP saved the design: add it to the cart as the product size it's sold as.
+  const addToCart = useEffectEvent(async (designId: string) => {
+    try {
+      const res = await fetch(`/api/cake-studio/designs/${encodeURIComponent(designId)}`);
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? "We couldn't add your cake to the cart. Please try again.");
+      } else if (!body.cartLine) {
+        setError(
+          "This cake size can't be ordered online yet. Your design is saved: call us with its code to order it.",
+        );
+      } else {
+        await add({
+          productSlug: body.cartLine.productSlug,
+          skuId: body.cartLine.skuId,
+          quantity: 1,
+          customization: { designId, summary: [], previewUrl: body.previewUrl },
+        });
+      }
+    } catch {
+      setError("We couldn't add your cake to the cart. Please try again.");
+    }
+  });
 
   // Sends a message to the embed: only to the ERP's origin, never "*".
   const send = (message: Record<string, unknown>) =>
@@ -82,6 +109,7 @@ export function CakeStudioEmbed({
           break;
         case "saved":
           setSaved(message);
+          void addToCart(message.design_id);
           break;
         case "error":
           setError(message.message);

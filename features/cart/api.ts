@@ -7,7 +7,8 @@ import type { CartItem } from "./store";
 
 type CartLine = Pick<CartItem, "productSlug" | "skuId" | "quantity" | "customization">;
 
-export type RemovedReasonCode = "not_available" | "sold_out" | "choose_variant" | "customize_first";
+export type RemovedReasonCode =
+  "not_available" | "sold_out" | "choose_variant" | "customize_first" | "design_unavailable";
 
 /** Allowed quantities for a line (ERP limits within 1–99). */
 export type LineLimits = { min: number; max: number; step: number };
@@ -47,9 +48,13 @@ export async function checkItem(line: CartLine & { inCart?: number }): Promise<A
     const res = await post("/api/cart/items", line);
     const body = await res.json().catch(() => null);
     if (res.ok && body?.item) return { ok: true, item: body.item };
-    const reason = ["not_available", "sold_out", "choose_variant", "customize_first"].includes(
-      body?.error,
-    )
+    const reason = [
+      "not_available",
+      "sold_out",
+      "choose_variant",
+      "customize_first",
+      "design_unavailable",
+    ].includes(body?.error)
       ? body.error
       : "error";
     return { ok: false, reason, message: body?.message ?? GENERIC };

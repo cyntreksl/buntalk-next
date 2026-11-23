@@ -111,6 +111,7 @@ export async function submitOrder(
           discount: l.discount,
           lineTotal: l.lineTotal,
           schemeIds: l.schemeIds,
+          cake: l.cake,
         })),
         appliedSchemeIds: order.appliedSchemes.map((s) => s.id),
         currency: order.currency,

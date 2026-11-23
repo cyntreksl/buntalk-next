@@ -32,6 +32,8 @@ type CartState = {
   addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   /** Puts a checked line in the cart with exactly this quantity (after POST /api/cart/items). */
   setLine: (item: CartItem) => void;
+  /** Puts a checked line in place of another (an edited Cake Studio design, BUN-184). */
+  replaceLine: (oldKey: string, item: CartItem) => void;
   setQuantity: (key: string, quantity: number) => void;
   removeItem: (key: string) => void;
   /** Replace the cart with the server-priced lines (see features/cart/useServerCart.ts). */
@@ -91,6 +93,21 @@ export const useCartStore = create<CartState>()(
             items: exists
               ? state.items.map((i) => (i.key === item.key ? line : i))
               : [...state.items, line],
+          };
+        }),
+      replaceLine: (oldKey, item) =>
+        set((state) => {
+          const line = { ...item, quantity: clampQty(item.quantity) };
+          if (!state.items.some((i) => i.key === oldKey)) {
+            const others = state.items.filter((i) => i.key !== item.key);
+            if (others.length >= MAX_CART_LINES) return state;
+            return { dirty: true, items: [...others, line] };
+          }
+          return {
+            dirty: true,
+            items: state.items
+              .filter((i) => i.key !== item.key || i.key === oldKey)
+              .map((i) => (i.key === oldKey ? line : i)),
           };
         }),
       setQuantity: (key, quantity) =>

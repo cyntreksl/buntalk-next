@@ -12,6 +12,7 @@ const failureTitles = {
   sold_out: "Sold out",
   choose_variant: "Choose a size",
   customize_first: "Design it first",
+  design_unavailable: "Design it again",
   error: "Couldn't add to cart",
 } as const;
 
@@ -24,6 +25,7 @@ const failureTitles = {
  */
 export function useAddToCart() {
   const setLine = useCartStore((state) => state.setLine);
+  const replaceLine = useCartStore((state) => state.replaceLine);
   const [adding, setAdding] = useState(false);
 
   async function add(line: {
@@ -31,13 +33,19 @@ export function useAddToCart() {
     skuId?: string;
     quantity: number;
     customization?: CartItem["customization"];
+    /** The cart line this one replaces, in the same place (an edited cake design, BUN-184). */
+    replaceKey?: string;
   }) {
+    const { replaceKey, ...item } = line;
     // Already in the cart, so the server can keep the total within the limits.
-    const key = lineKey(line.productSlug, line.skuId, line.customization?.designId);
-    const inCart = useCartStore.getState().items.find((i) => i.key === key)?.quantity ?? 0;
+    const key = lineKey(item.productSlug, item.skuId, item.customization?.designId);
+    const inCart =
+      key === replaceKey
+        ? 0
+        : (useCartStore.getState().items.find((i) => i.key === key)?.quantity ?? 0);
 
     setAdding(true);
-    const result = await checkItem({ ...line, inCart });
+    const result = await checkItem({ ...item, inCart });
     setAdding(false);
 
     if (!result.ok) {
@@ -55,7 +63,7 @@ export function useAddToCart() {
       unitPrice,
     } = result.item;
     const total = result.item.quantity;
-    setLine({
+    (replaceKey ? (next: CartItem) => replaceLine(replaceKey, next) : setLine)({
       key: checkedKey,
       productSlug,
       skuId,

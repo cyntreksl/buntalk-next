@@ -102,6 +102,57 @@ describe("placeOrder", () => {
   });
 });
 
+describe("Cake Studio cakes on an order (BUN-184)", () => {
+  const config = { size_id: 4, shape_id: 1, sponge_id: 7, frosting_id: 13, finish_id: 16 };
+  const cakeLine = {
+    key: "design-your-own-cake:sku-1kg:design-d-42",
+    productSlug: "design-your-own-cake",
+    productId: "p-cake",
+    skuId: "sku-1kg",
+    name: "Design your own cake",
+    variant: "1 kg",
+    customization: {
+      designId: "d-42",
+      summary: ["Flavour: Chocolate sponge"],
+      previewUrl: "https://img.test/d-42.png",
+    },
+    cake: { designId: "d-42", config, summary: ["Flavour: Chocolate sponge"] },
+    unitPrice: 4050,
+    quantity: 1,
+    lineSubtotal: 4050,
+    discount: 0,
+    lineTotal: 4050,
+    schemes: [],
+  };
+
+  it("keeps the full design on the order and sends it to the ERP with the line", async () => {
+    priceCart.mockResolvedValue({
+      ...pricedCart,
+      items: [...pricedCart.items, cakeLine],
+      subtotal: 4410,
+      total: 4290,
+    });
+    const { order } = await placeOrder(db, input());
+    expect(order.lines[1].cake).toEqual({
+      designId: "d-42",
+      config,
+      summary: ["Flavour: Chocolate sponge"],
+      previewUrl: "https://img.test/d-42.png",
+    });
+    expect(order.total).toBe(4290);
+
+    expect(await submitOrder(db, order.id)).toBe("submitted");
+    const sent = createOrder.mock.calls[0][0];
+    expect(sent.lines[0].cake).toBeUndefined();
+    expect(sent.lines[1]).toMatchObject({
+      productId: "p-cake",
+      skuId: "sku-1kg",
+      unitPrice: 4050,
+      cake: { designId: "d-42", config, summary: ["Flavour: Chocolate sponge"] },
+    });
+  });
+});
+
 describe("submitOrder", () => {
   it("sends the order once and stores the ERP order number", async () => {
     const { order } = await placeOrder(db, input());

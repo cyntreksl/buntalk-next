@@ -3,12 +3,19 @@ import type { Product } from "@/lib/erp";
 
 const getProductsForCart = vi.fn();
 const quoteCart = vi.fn();
+const getCakeDesign = vi.fn();
 vi.mock("@/lib/erp", () => ({
   ErpError: class ErpError extends Error {},
   ErpResponseError: class ErpResponseError extends Error {},
+  ErpNotFoundError: class ErpNotFoundError extends Error {},
+  ErpValidationError: class ErpValidationError extends Error {},
   getProductsForCart: (...args: unknown[]) => getProductsForCart(...args),
   quoteCart: (...args: unknown[]) => quoteCart(...args),
+  getCakeDesign: (...args: unknown[]) => getCakeDesign(...args),
+  getCakeStudioMenu: async () => ({ sizes: [{ id: 4, skuLinkId: "sku-1kg" }] }),
+  getAllProducts: async () => [],
 }));
+const { ErpNotFoundError } = await import("@/lib/erp");
 
 const { priceCart } = await import("./cart.server");
 
@@ -55,6 +62,7 @@ const cake: Product = {
 
 beforeEach(() => {
   quoteCart.mockReset();
+  getCakeDesign.mockReset();
   getProductsForCart.mockReset();
   getProductsForCart.mockResolvedValue(
     new Map<string, Product | null>([
@@ -266,15 +274,98 @@ describe("priceCart: limits and Cake Studio designs (BUN-175)", () => {
     expect(cart.removed).toEqual([{ key: "studio-cake", reason: "customize_first" }]);
   });
 
-  it("keeps one line per design, with its summary", async () => {
-    const design = { designId: "d-42", summary: ["Flavour: Chocolate"] };
-    const cart = await priceCart([
-      { productSlug: "studio-cake", quantity: 1, customization: design },
-    ]);
-    expect(cart.items[0]).toMatchObject({
-      key: "studio-cake:design-d-42",
-      customization: design,
+  const designed: Product = {
+    ...studio,
+    slug: "design-your-own-cake",
+    skus: [
+      {
+        id: "sku-1kg",
+        code: "1KG",
+        options: [{ type: "Size", value: "1 kg" }],
+        price: 5000,
+        inStock: true,
+      },
+    ],
+  };
+  const saved = {
+    id: "d-42",
+    design: { size_id: 4, shape_id: 1, sponge_id: 2, frosting_id: 3, finish_id: 4 },
+    lines: [],
+    total: 4050,
+    summary: [
+      { label: "Flavour", value: "Chocolate sponge" },
+      { label: "Message", value: '"Happy 30th"' },
+    ],
+    previewUrl: "https://img.test/d-42.png",
+  };
+  const cakeLine = (customization = { designId: "d-42", summary: ["Made up"] }) => ({
+    productSlug: "design-your-own-cake",
+    skuId: "sku-1kg",
+    quantity: 2,
+    customization,
+  });
+
+  it("prices a designed cake from its saved design, with the ERP's summary and picture (BUN-184)", async () => {
+    getProductsForCart.mockResolvedValue(
+      new Map<string, Product | null>([
+        ["fish-bun", { ...bun, id: "p-bun" }],
+        ["design-your-own-cake", { ...designed, id: "p-cake" }],
+      ]),
+    );
+    getCakeDesign.mockResolvedValue(saved);
+    quoteCart.mockResolvedValue({
+      currency: "LKR",
+      lines: [
+        {
+          productId: "p-bun",
+          skuId: undefined,
+          quantity: 3,
+          unitPrice: 120,
+          discount: 60,
+          lineTotal: 300,
+          schemeIds: ["sc1"],
+        },
+      ],
+      appliedSchemes: [{ schemeId: "sc1", name: "Bun deal", discount: 60 }],
+      freeItems: [],
+      subtotal: 360,
+      discountTotal: 60,
+      total: 300,
     });
+    const cart = await priceCart([{ productSlug: "fish-bun", quantity: 3 }, cakeLine()]);
+
+    // Offers are for product lines only: the cake isn't sent to the scheme engine.
+    expect(quoteCart.mock.calls[0][0]).toEqual([
+      { productId: "p-bun", skuId: undefined, quantity: 3 },
+    ]);
+    expect(cart.items[1]).toMatchObject({
+      key: "design-your-own-cake:sku-1kg:design-d-42",
+      unitPrice: 4050,
+      lineTotal: 8100,
+      discount: 0,
+      customization: {
+        designId: "d-42",
+        summary: ["Flavour: Chocolate sponge", 'Message: "Happy 30th"'],
+        previewUrl: "https://img.test/d-42.png",
+      },
+      cake: { designId: "d-42", config: saved.design },
+    });
+    expect(cart.subtotal).toBe(8460);
+    expect(cart.discountTotal).toBe(60);
+    expect(cart.total).toBe(8400);
+  });
+
+  it("refuses a design the ERP no longer has or can't make, and one for another size", async () => {
+    getProductsForCart.mockResolvedValue(new Map([["design-your-own-cake", designed]]));
+    getCakeDesign.mockRejectedValue(new ErpNotFoundError("/cake-studio/designs/d-42"));
+    const gone = await priceCart([cakeLine()]);
+    expect(gone.removed).toEqual([
+      { key: "design-your-own-cake:sku-1kg:design-d-42", reason: "design_unavailable" },
+    ]);
+
+    getCakeDesign.mockResolvedValue({ ...saved, design: { ...saved.design, size_id: 5 } });
+    const other = await priceCart([cakeLine()]);
+    expect(other.removed[0].reason).toBe("not_available");
   });
 
   it("ignores a design on a product that isn't customizable", async () => {
@@ -282,5 +373,6 @@ describe("priceCart: limits and Cake Studio designs (BUN-175)", () => {
       { productSlug: "fish-bun", quantity: 1, customization: { designId: "x", summary: [] } },
     ]);
     expect(cart.items[0]).toMatchObject({ key: "fish-bun", customization: undefined });
+    expect(getCakeDesign).not.toHaveBeenCalled();
   });
 });

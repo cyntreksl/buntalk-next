@@ -4,6 +4,7 @@ import { erpGet, erpRequest } from "./http";
 import { erpCustomerSchema, erpOrderSchema, one } from "./schemas";
 import { toCustomer, toOrder } from "./mappers";
 import type { Customer, Order } from "./types";
+import type { CakeDesign } from "./cake-studio";
 
 /**
  * ERP writes for orders (BUN-164). Contract: docs/erp-api-contract.md,
@@ -22,6 +23,11 @@ export type ErpOrderLineInput = {
   discount: number;
   lineTotal: number;
   schemeIds: string[];
+  /**
+   * A Cake Studio cake (BUN-184; ERP side: BUN-252): the saved design's id
+   * and the full design, so the ERP can create the cake request for it.
+   */
+  cake?: { designId: string; config: CakeDesign; summary: string[]; previewUrl?: string };
 };
 
 export type ErpOrderInput = {
@@ -104,6 +110,14 @@ export async function createOrder(input: ErpOrderInput, idempotencyKey: string):
         discount: money(l.discount),
         line_total: money(l.lineTotal),
         scheme_ids: l.schemeIds,
+        cake_design: l.cake
+          ? {
+              design_id: l.cake.designId,
+              config: l.cake.config,
+              summary: l.cake.summary,
+              preview_url: l.cake.previewUrl ?? null,
+            }
+          : null,
       })),
       applied_scheme_ids: input.appliedSchemeIds,
       currency: input.currency,
