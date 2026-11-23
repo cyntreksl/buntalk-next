@@ -30,7 +30,10 @@ export type ProductAttribute = { name: string; values: string[] };
 
 export type ProductOption = { type: string; value: string };
 
-export type Sku = {
+/** Online order quantity limits from the ERP (BUN-259). Missing = 1 to 99. */
+export type QuantityLimits = { minQuantity?: number; maxQuantity?: number; quantityStep?: number };
+
+export type Sku = QuantityLimits & {
   id: string;
   code: string;
   options: ProductOption[];
@@ -43,7 +46,7 @@ export type Sku = {
   servings?: number;
 };
 
-export type Product = {
+export type Product = QuantityLimits & {
   /** ERP link_id (absent in old sample data). */
   id?: string;
   slug: string;

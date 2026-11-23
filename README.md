@@ -104,12 +104,12 @@ public/
 
 ## State and data fetching
 
-| Kind of data                                    | Approach                                                                                        |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Server data for a page (products, categories)   | Fetch in Server Components through `lib/erp`, using Next.js caching                             |
-| Server data that changes on the client          | TanStack Query (`@tanstack/react-query`). The provider is in `app/providers.tsx`                |
-| Mutations (add to cart on the server, checkout) | Server Actions, or route handlers called through TanStack Query mutations                       |
-| Client-only state (cart, UI toggles)            | Zustand stores in the owning feature, e.g. `features/cart/store.ts` (persisted to localStorage) |
+| Kind of data                                    | Approach                                                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server data for a page (products, categories)   | Fetch in Server Components through `lib/erp`, using Next.js caching                                                                               |
+| Server data that changes on the client          | TanStack Query (`@tanstack/react-query`). The provider is in `app/providers.tsx`                                                                  |
+| Mutations (add to cart on the server, checkout) | Server Actions, or route handlers called through TanStack Query mutations                                                                         |
+| Client-only state (cart, UI toggles)            | Zustand stores in the owning feature, e.g. `features/cart/store.ts` (persisted to localStorage; the cart is also saved on the server, see "Cart") |
 
 ## Rendering strategy
 
@@ -117,16 +117,16 @@ The project uses Next.js [Cache Components](https://nextjs.org/docs/app/getting-
 
 ### Rendering mode per route
 
-| Route              | Mode                    | Refresh                                     | Notes                                                                                              |
-| ------------------ | ----------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `/`                | Static + ISR            | every 15 min, or on demand                  | Categories and featured products                                                                   |
-| `/category/[slug]` | Static + ISR            | every 15 min, or on demand                  | All categories prerendered at build time                                                           |
-| `/product/[slug]`  | Static + ISR            | every 15 min, or on demand                  | Featured products prerendered at build time. Others are built on their first visit, then cached    |
-| `/search`          | Dynamic                 | per request; results per query cached 5 min | Depends on `?q=`. Not indexed by search engines                                                    |
-| `/cart`            | Client-side             | n/a                                         | Cart lives in the visitor's browser (localStorage). The server page holds no user data             |
-| `/checkout`        | Dynamic                 | per request                                 | Reads the session cookie. Prices and stock are re-checked against the ERP when the order is placed |
-| `/account`         | Dynamic                 | per request                                 | Reads the session cookie                                                                           |
-| `/api/revalidate`  | Dynamic (route handler) | n/a                                         | On-demand revalidation webhook, see below                                                          |
+| Route              | Mode                    | Refresh                                     | Notes                                                                                                         |
+| ------------------ | ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `/`                | Static + ISR            | every 15 min, or on demand                  | Categories and featured products                                                                              |
+| `/category/[slug]` | Static + ISR            | every 15 min, or on demand                  | All categories prerendered at build time                                                                      |
+| `/product/[slug]`  | Static + ISR            | every 15 min, or on demand                  | Featured products prerendered at build time. Others are built on their first visit, then cached               |
+| `/search`          | Dynamic                 | per request; results per query cached 5 min | Depends on `?q=`. Not indexed by search engines                                                               |
+| `/cart`            | Client-side             | n/a                                         | Cart is kept in the browser (localStorage) and saved on the server (`/api/cart`). The page holds no user data |
+| `/checkout`        | Dynamic                 | per request                                 | Reads the session cookie. Prices and stock are re-checked against the ERP when the order is placed            |
+| `/account`         | Dynamic                 | per request                                 | Reads the session cookie                                                                                      |
+| `/api/revalidate`  | Dynamic (route handler) | n/a                                         | On-demand revalidation webhook, see below                                                                     |
 
 `npm run build` prints this table as well. `○` means static, `◐` means a static shell with per-request parts, and `ƒ` means fully dynamic.
 
@@ -919,6 +919,31 @@ Where it applies:
 
 When something is hidden in the ERP, the ERP calls the revalidate webhook for that product or category. Product lists carry the `categories` tag too, so hiding a category also refreshes them.
 
+### Cart (BUN-175)
+
+The cart is kept in two places that stay in step:
+
+- **In the browser** (`features/cart/store.ts`, Zustand + localStorage), so the cart count and cart page show instantly.
+- **On the server** (`carts` table, `lib/cart/persist.server.ts`), so the cart survives a cleared browser and, once sign-in exists, follows the customer to other devices.
+  - **Guest:** found by a random token in the httpOnly `buntalk_cart` cookie (only its hash is stored). Kept 60 days after the last change; the scheduled job (`/api/cron`) deletes older guest carts.
+  - **Signed-in customer:** saved against the customer once sign-in exists (`getCustomerId()`, BUN-186). Merging a guest cart into it on sign-in is BUN-178.
+- **Keeping them in step** (`features/cart/CartSync.tsx`, in the app providers): every change is saved shortly after it's made (`PUT /api/cart`). On page load and when the tab comes back into view, the saved cart is loaded (`GET /api/cart`). A change made offline stays marked and is sent later. Other open tabs update straight away. If two devices change the cart, the last saved change wins.
+
+**API:**
+
+| Endpoint                  | What it does                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /api/cart`           | The saved cart (lines with a display copy of name and price)                                      |
+| `PUT /api/cart`           | Replace the saved cart. Lines are merged by product, size and design; 1–99 each; at most 50 lines |
+| `POST /api/cart/items`    | Check one line with the ERP before adding it (price, availability, limits)                        |
+| `POST /api/cart/validate` | Re-price the whole cart from the ERP (cart and checkout pages)                                    |
+
+**Rules:**
+
+- **Checked on every change:** adding goes through `POST /api/cart/items` (live ERP check). The cart page re-checks the whole cart when it opens and after every change. A product hidden or removed in the ERP, or a size sold out, is taken out with a notice, and the saved cart is updated.
+- **Quantity limits** (`lib/cart/limits.ts`): every line is 1 to 99. When the ERP sends online limits for the product or size (min, max, step; ticket BUN-259), those apply too. Adding counts what's already in the cart ("You can order up to 5 of this item"). The product page and cart quantity controls stop at the limit. A saved line over its limit is lowered when the cart is checked, with a notice. Placing an order never changes a quantity silently: it's refused with `cart_changed`.
+- **Cake Studio items:** a line can carry a Cake Studio design (`customization`: design id and a short summary). Each design is its own line. A customizable product can't be added without a design ("Please design this cake in Cake Studio first"). Ordering designed cakes is refused until the design can be sent to the ERP (BUN-184, ERP ticket BUN-252).
+
 ### Pricing
 
 The storefront never calculates a price. It shows and charges exactly what the ERP returns.
@@ -977,7 +1002,7 @@ The ERP doesn't have a general promotions engine yet (ticket BUN-248). The mock 
 
 ### Mock ERP
 
-`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). For filters (BUN-173), the cakes have sizes, flavours and Occasion tags, and there is a vanilla wedding cake. For the product page (BUN-171), the fish bun has gallery photos (one broken), a short description, weight and servings, and the cake sizes have their own photos, weights and servings. `GET /images/gen/<label>.svg?bg=<hex>` draws a test photo. `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
+`npm run mock:erp` starts a small fake ERP on `http://127.0.0.1:4010`. It implements the catalog endpoints from [docs/erp-api-contract.md](docs/erp-api-contract.md) with sample data, including a sub-category, a non-alphabetical order, a missing image, a broken image and a cake with four sizes (one sold out, one hidden). The sausage bun has a limit of 5 per order line (BUN-175). For the product card (BUN-170) it has a Cake Studio product ("Design your own cake"), a discounted product backed by a scheme (sausage bun) and a compare-at price with no scheme behind it (vegetable roll, shown at a plain price). For filters (BUN-173), the cakes have sizes, flavours and Occasion tags, and there is a vanilla wedding cake. For the product page (BUN-171), the fish bun has gallery photos (one broken), a short description, weight and servings, and the cake sizes have their own photos, weights and servings. `GET /images/gen/<label>.svg?bg=<hex>` draws a test photo. `?customer=cust-wholesale` returns a test customer's own prices. It also includes hidden items: an inactive category, a category and a product switched off for the website, and a visible product inside the hidden category.
 
 To run the storefront against it, add this to `.env.local`:
 

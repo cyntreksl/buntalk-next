@@ -64,6 +64,22 @@ export async function placeOrder(
     );
   }
   if (cart.items.length === 0) throw new OrderError("Your cart is empty.", 400, "empty_cart");
+  // A quantity outside the line's limits is never changed silently on an order (BUN-175).
+  if (cart.items.some((i) => i.adjusted)) {
+    throw new OrderError(
+      "Some quantities in your cart are over the limit. Please review your cart.",
+      409,
+      "cart_changed",
+    );
+  }
+  // Cake Studio designs can't be sent to the ERP yet (BUN-184, ERP ticket BUN-252).
+  if (cart.items.some((i) => i.customization)) {
+    throw new OrderError(
+      "Cake Studio cakes can't be ordered online yet. Please remove them from your cart.",
+      409,
+      "customization_unsupported",
+    );
+  }
 
   // TODO(delivery fees ticket): delivery fees come from the ERP / delivery rules; none yet.
   const deliveryFee = 0;

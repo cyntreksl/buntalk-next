@@ -169,6 +169,8 @@ function seed() {
       category: cat("buns"),
       price: price(150, 180),
       image_url: null,
+      // BUN-175 (ERP ticket BUN-259): at most 5 per order line.
+      max_order_quantity: 5,
     },
     {
       slug: "vegetable-roll",

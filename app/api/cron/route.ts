@@ -1,3 +1,4 @@
+import { deleteStaleGuestCarts } from "@/lib/cart/persist.server";
 import { retryCustomerSync } from "@/lib/customers";
 import { getDb } from "@/lib/db";
 import { checkCatalog } from "@/lib/freshness/check";
@@ -16,6 +17,7 @@ import { checkOpsAuth } from "@/lib/orders/ops-auth";
  * - customers: send due customer changes to the ERP (BUN-166)
  * - catalog:   every 5 minutes, find catalog changes a missed webhook didn't
  *              report and refresh those pages (BUN-167)
+ * - carts:     delete guest carts not changed for 60 days (BUN-175)
  *
  * One failing job doesn't stop the others; its error is in the response
  * and the server log.
@@ -48,8 +50,10 @@ export async function POST(request: Request) {
     checkCatalog(db, { force: force.includes("catalog") }),
   );
 
+  const carts = await run("carts", async () => ({ deleted: await deleteStaleGuestCarts(db) }));
+
   return Response.json(
-    { orders, statuses, customers, catalog },
+    { orders, statuses, customers, catalog, carts },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

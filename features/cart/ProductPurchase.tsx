@@ -6,6 +6,7 @@ import { Button, QuantityStepper, Radio, RadioGroup, buttonClasses } from "@/com
 import { OfferPrice } from "@/features/catalog/OfferPrice";
 import { useSelectedSku } from "@/features/product/SelectedSku";
 import type { Product } from "@/lib/erp";
+import { clampQuantity, quantityLimits } from "@/lib/cart/limits";
 import { defaultSkuId, variantLabel } from "@/lib/pricing";
 import { formatPrice, formatWeight } from "@/lib/utils";
 import { useAddToCart } from "./useAddToCart";
@@ -23,6 +24,9 @@ type ProductPurchaseProps = {
     | "netWeightGrams"
     | "servings"
     | "offers"
+    | "minQuantity"
+    | "maxQuantity"
+    | "quantityStep"
   >;
 };
 
@@ -46,6 +50,9 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
   const [quantity, setQuantity] = useState(1);
 
   const sku = skus.find((s) => s.id === skuId);
+  // Allowed quantities (ERP limits, BUN-259; 1–99 without them).
+  const limits = quantityLimits(product, sku);
+  const shownQuantity = clampQuantity(quantity, limits);
   const shown = sku ?? product;
   const soldOut = sku ? !sku.inStock : false;
   const weight = sku?.netWeightGrams ?? product.netWeightGrams;
@@ -53,7 +60,9 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
   const facts = [weight && formatWeight(weight), servings && `Serves ${servings}`].filter(Boolean);
 
   async function add() {
-    if (await addToCart({ productSlug: product.slug, skuId, quantity })) setQuantity(1);
+    if (await addToCart({ productSlug: product.slug, skuId, quantity: shownQuantity })) {
+      setQuantity(limits.min);
+    }
   }
 
   return (
@@ -115,8 +124,10 @@ export function ProductPurchase({ product }: ProductPurchaseProps) {
       ) : (
         <div className="flex flex-wrap items-center gap-3">
           <QuantityStepper
-            value={quantity}
+            value={shownQuantity}
             onChange={setQuantity}
+            min={limits.min}
+            max={limits.max}
             label={`Quantity of ${product.name}`}
             disabled={soldOut}
           />
