@@ -10,15 +10,18 @@ const sameLines = (a: CartItem[], b: CartItem[]) =>
 
 /** Lines as the server saves them (it works out the key itself). */
 const toSaved = (items: CartItem[]) =>
-  items.map(({ productSlug, skuId, name, variant, customization, unitPrice, quantity }) => ({
-    productSlug,
-    skuId,
-    name,
-    variant,
-    customization,
-    unitPrice,
-    quantity,
-  }));
+  items.map(
+    ({ productSlug, skuId, name, variant, customization, imageUrl, unitPrice, quantity }) => ({
+      productSlug,
+      skuId,
+      name,
+      variant,
+      customization,
+      imageUrl,
+      unitPrice,
+      quantity,
+    }),
+  );
 
 async function saveToServer() {
   const { items } = useCartStore.getState();

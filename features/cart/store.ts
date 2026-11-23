@@ -14,7 +14,9 @@ export type CartItem = {
   /** "1 kg", for a product with sizes/variants. */
   variant?: string;
   /** Cake Studio design (BUN-184): its id and a short summary to show. */
-  customization?: { designId: string; summary: string[] };
+  customization?: { designId: string; summary: string[]; previewUrl?: string };
+  /** Product (or size) photo, a display copy from the server check. */
+  imageUrl?: string;
   /** Last price the ERP gave. For display only; the server re-prices every time. */
   unitPrice: number;
   quantity: number;

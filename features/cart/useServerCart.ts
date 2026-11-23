@@ -106,7 +106,14 @@ export function useServerCart(enabled: boolean): ServerCartState {
           if (!p) return i;
           // A quantity over the line's limit is lowered to what the server allows.
           const quantity = p.adjusted ? p.quantity : i.quantity;
-          return { ...i, name: p.name, variant: p.variant, unitPrice: p.unitPrice, quantity };
+          return {
+            ...i,
+            name: p.name,
+            variant: p.variant,
+            imageUrl: p.imageUrl,
+            unitPrice: p.unitPrice,
+            quantity,
+          };
         });
       const lowered = result.items.filter((i) => i.adjusted).map((i) => i.name);
       if (lowered.length > 0) setAdjusted((a) => [...new Set([...a, ...lowered])]);

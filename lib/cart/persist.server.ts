@@ -26,6 +26,11 @@ export const savedLineSchema = z.object({
   name: z.string().trim().min(1).max(200),
   variant: z.string().trim().max(100).optional(),
   customization: customizationSchema.optional(),
+  /** Display copy of the product photo. */
+  imageUrl: z
+    .url({ protocol: /^https?$/ })
+    .max(500)
+    .optional(),
   unitPrice: z.number().nonnegative().max(10_000_000),
   quantity: z.number().int().min(1).max(MAX_QUANTITY),
 });
