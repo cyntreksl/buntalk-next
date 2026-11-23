@@ -10,7 +10,7 @@ export function AuthPage({ mode, next }: { mode: AuthMode; next: string }) {
   return (
     <AuthForm
       mode={mode}
-      next={next === "/account" ? undefined : next}
+      next={next}
       onDone={() => {
         router.replace(next);
         router.refresh();

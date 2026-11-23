@@ -1,5 +1,6 @@
 import type { CakeDesign } from "@/lib/cake-studio/design-schema";
 import {
+  bigint,
   boolean,
   index,
   primaryKey,
@@ -383,6 +384,8 @@ export const authUsers = pgTable("auth_users", {
   /** Lower case. Unique: one account per email. */
   email: text().notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
+  /** Optional, lower case, unique: sign in with it instead of the email (BUN-187). */
+  username: text().unique(),
   image: text(),
   customerId: uuid("customer_id")
     .unique()
@@ -452,5 +455,19 @@ export const authVerifications = pgTable(
   },
   (t) => [index("auth_verifications_identifier_idx").on(t.identifier)],
 );
+
+/**
+ * Sign-in rate limits (BUN-187): requests per client IP and endpoint in the
+ * current window, kept in the database so every server instance shares them.
+ */
+export const authRateLimits = pgTable("auth_rate_limits", {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  key: text().notNull().unique(),
+  count: integer().notNull(),
+  /** Milliseconds since 1970. */
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 
 export type AuthUser = typeof authUsers.$inferSelect;

@@ -32,17 +32,19 @@ npm run dev                 # http://localhost:3000
 
 All variables are documented in [`.env.example`](.env.example). Copy it to `.env.local` for local work; staging and production values are set in the hosting/CI environment and are never committed.
 
-| Variable               | Scope  | Purpose                                                                       |
-| ---------------------- | ------ | ----------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`                                            |
-| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links)                                 |
-| `ERP_API_BASE_URL`     | server | ERP API base URL                                                              |
-| `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser                       |
-| `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                                       |
-| `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)                                |
-| `ERP_WEBHOOK_SECRET`   | server | Secret the ERP signs its webhooks with (HMAC-SHA256)                          |
-| `AUTH_SECRET`          | server | Signs sign-in session cookies (32+ random characters; required outside local) |
-| `AUTH_URL`             | server | Optional site origin for sign-in, if not `NEXT_PUBLIC_SITE_URL`               |
+| Variable               | Scope  | Purpose                                                                                       |
+| ---------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`                                                            |
+| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links)                                                 |
+| `ERP_API_BASE_URL`     | server | ERP API base URL                                                                              |
+| `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser                                       |
+| `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                                                       |
+| `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)                                                |
+| `ERP_WEBHOOK_SECRET`   | server | Secret the ERP signs its webhooks with (HMAC-SHA256)                                          |
+| `AUTH_SECRET`          | server | Signs sign-in session cookies (32+ random characters; required outside local)                 |
+| `AUTH_URL`             | server | Optional site origin for sign-in, if not `NEXT_PUBLIC_SITE_URL`                               |
+| `SMTP_URL`             | server | SMTP server for account emails (required outside local; locally, emails go to the server log) |
+| `EMAIL_FROM`           | server | Sender of account emails, e.g. `Buntalk <no-reply@example.com>`                               |
 
 Env vars are validated with Zod:
 
@@ -681,9 +683,9 @@ Each order's fulfilment status is kept in step with the ERP (`lib/orders/sync.ts
 
 Sign-in is built on [Better Auth](https://www.better-auth.com) (BUN-186). Every sign-in method plugs into one setup, in `lib/auth/server.ts`: email and password now, Google (BUN-189), Apple (BUN-190) and phone codes (BUN-191) later. Pages, routes and features only use `lib/auth` (`getSession`, `getUserId`, `getCustomerId`, `requireSession`); the browser uses `lib/auth/client.ts` through `features/auth`.
 
-- **Storage:** Better Auth's tables in our Postgres, through Drizzle (`auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`; migration `0006_auth`).
+- **Storage:** Better Auth's tables in our Postgres, through Drizzle (`auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`, `auth_rate_limits`; migrations `0006_auth` and `0007_auth_username_rate_limits`).
   - One user can have several sign-in methods (`auth_accounts`: `credential` for email and password, later `google`, `apple`, phone). Methods with the same verified email are linked to one user.
-  - `auth_users.customer_id` links the user to their storefront customer (and through it to the ERP customer, see "Customers"). Registration sets it (BUN-187/192); a customer can't set it in a request.
+  - `auth_users.customer_id` links the user to their storefront customer (and through it to the ERP customer, see "Customers"). It's set when the customer record is made, once a phone number is given (see below); a customer can't set it in a request.
 - **Session cookie:** `buntalk.session_token` (`__Secure-` in front on https). httpOnly, SameSite=Lax, Secure on https, signed with `AUTH_SECRET`. It holds only a random token: every check reads the session from the database on the server, so there is no cookie cache to go stale.
 - **Expiry and refresh:** a session lasts 30 days and is extended (at most once a day) while the customer keeps using the site.
 - **Signed-in state** is checked on the server on every request (`getSession()`, once per request). The header asks `GET /api/session` (`{ signedIn, firstName }`) because it's part of cached pages.
@@ -693,14 +695,20 @@ Sign-in is built on [Better Auth](https://www.better-auth.com) (BUN-186). Every 
   - After signing in, the customer comes back to `next`. Only paths on this site are followed (`safeNext`).
   - Checkout isn't protected, because guests can check out (BUN-197). It offers **Sign in** in the dialog and stays on checkout.
 - **Sign-in and sign-up:** `/sign-in` and `/sign-up` pages, and the same form in a dialog (the header's account menu, checkout). `features/auth/AuthForm.tsx` shows a plain message for each error ("That email and password don't match").
-  - Email and password is the first method: at least 8 characters, hashed with scrypt. Email verification, password reset and the customer record come with BUN-187.
+- **Email or username and password (BUN-187):**
+  - **Sign-up:** name, email, an optional username, and a password. The password rules (`lib/auth/password.ts`) are ticked off while typing and checked again on the server: 8 to 128 characters, a letter and a number (or 16+ characters), not a common password, not containing the email name or username. Usernames are 3 to 30 letters, numbers, dots or underscores, stored in lower case (`lib/auth/username.ts`).
+  - **Email confirmation:** after signing up, the customer is asked to check their email. The link (valid 24 hours, once) confirms the email and signs them in, on `/email-verified`, which goes on to where they were. An account can't sign in until its email is confirmed: trying with the right password says so and sends a new link. "Send it again" is on the check-your-email screen.
+  - **Sign-in:** the email or the username, and the password.
+  - **Nothing reveals who has an account:** a wrong password and an unknown email or username get the same message ("Those details don't match an account"). Signing up with an email that already has an account shows the same "check your email" as a new sign-up; the owner gets an email saying someone tried (`lib/auth/emails.ts`).
+  - **Passwords** are hashed with scrypt (salted) and never stored or logged as typed.
+  - **Rate limits:** per client IP and endpoint, counted in the database (`auth_rate_limits`) so every server instance shares them. Sign-in (email or username) and sign-up: 5 per 5 minutes. A new confirmation email: 3 per 5 minutes. Then "Too many tries. Please wait a few minutes". The client IP comes from `x-forwarded-for` (set by the host's proxy); tuning it for the production host is part of BUN-229.
+  - **Customer record:** the storefront customer (and through it the ERP customer, BUN-166) needs a phone number, which email sign-up doesn't ask for. It is made, and linked to the user, when the phone number is first given: phone sign-in (BUN-191), the profile page (BUN-193) or checkout. Password reset is BUN-188.
 - **After signing in:** the guest cart joins the account's saved cart on the server (BUN-178, a Better Auth hook), and the browser loads it. Saved carts now belong to the signed-in user (`getUserId()`); customer prices use the ERP customer id (`getCustomerId()`), once the user's customer is linked to the ERP.
 - **Signing out** (account menu, mobile menu, account page) deletes the session in the database, so the cookie stops working at once. This browser forgets the account's cart (it stays saved on the account) and loads the home page fresh. **Sign out on all devices** (account page) ends every session of the account.
 - **Other tabs** follow sign-in and sign-out at once (`BroadcastChannel`, `features/auth/AuthSync.tsx`): they reload with the new session, and account pages go to sign-in.
-- **Settings:** `AUTH_SECRET` (at least 32 random characters, required outside local development; local development uses a built-in development secret) and optional `AUTH_URL` (else `NEXT_PUBLIC_SITE_URL`). Better Auth's telemetry is off.
-- **Caching:** `/sign-in`, `/sign-up` and `/api/auth/*` are sent with `Cache-Control: private, no-store`, like the account pages.
-- **Rate limits:** Better Auth's built-in limits on sign-in endpoints apply in production. Stronger protection is BUN-229.
-- **Tests:** `lib/auth/auth.integration.test.ts` runs Better Auth on an in-memory Postgres: sign-up, the cookie's settings, a wrong password, sign-out, sign-out on all devices, a tampered cookie, and that a customer link can't be set from a request.
+- **Settings:** `AUTH_SECRET` (at least 32 random characters, required outside local development; local development uses a built-in development secret) and optional `AUTH_URL` (else `NEXT_PUBLIC_SITE_URL`). Better Auth's telemetry is off. Account emails go through SMTP (`SMTP_URL`, `EMAIL_FROM`, `lib/email`), required outside local development; locally, emails are written to the dev server log (`[email] …`), so confirmation links can be opened from there.
+- **Caching:** `/sign-in`, `/sign-up`, `/email-verified` and `/api/auth/*` are sent with `Cache-Control: private, no-store`, like the account pages.
+- **Tests:** `lib/auth/auth.integration.test.ts` runs Better Auth on an in-memory Postgres, through its HTTP handler: sign-up needs the email confirmed and the link signs in; the password is stored hashed; weak passwords are refused on the server; a sign-up with a taken email looks the same and emails the owner; email or username sign-in; the same answer for a wrong password and an unknown account; an unconfirmed account gets a new link; the 6th sign-in try in 5 minutes is refused (429) while another address isn't; and the session tests (cookie settings, sign-out, sign-out on all devices, tampered cookie, no customer link from a request). `lib/auth/password.test.ts` covers the password and username rules.
 
 ## Customers
 
