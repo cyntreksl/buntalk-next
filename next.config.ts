@@ -14,6 +14,7 @@ const PRIVATE_PATHS = [
   "/orders",
   "/sign-in",
   "/sign-up",
+  "/email-verified",
   "/api/auth",
 ];
 

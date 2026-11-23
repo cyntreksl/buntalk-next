@@ -40,7 +40,8 @@ beforeAll(async () => {
   const d = drizzle(new PGlite(), { schema });
   await migrate(d, { migrationsFolder: join(process.cwd(), "drizzle") });
   db = d as unknown as Db;
-});
+  // Starts the mock ERP and migrates a database: slow when the whole suite runs at once.
+}, 30_000);
 
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 

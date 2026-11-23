@@ -47,6 +47,11 @@ const serverSchema = z.object({
   AUTH_SECRET: optional(z.string().min(32)),
   // Sign-in: the site's public origin, if different from NEXT_PUBLIC_SITE_URL.
   AUTH_URL: optional(z.url()),
+  // Email (BUN-187): SMTP server for account emails, e.g. smtps://user:pass@smtp.example.com:465.
+  // Required outside local development; locally, emails are written to the server log.
+  SMTP_URL: optional(z.string().regex(/^smtps?:\/\//, "an smtp:// or smtps:// URL")),
+  // Sender for account emails, e.g. "Buntalk <no-reply@example.com>".
+  EMAIL_FROM: optional(z.string().min(3)),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -109,6 +114,24 @@ export function authConfig(): { secret: string; baseUrl: string } {
     secret: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
     baseUrl: (AUTH_URL ?? publicEnv.NEXT_PUBLIC_SITE_URL).replace(/\/$/, ""),
   };
+}
+
+export type EmailConfig =
+  { kind: "smtp"; url: string; from: string } | { kind: "log"; from: string };
+
+/**
+ * How account emails are sent (BUN-187): through SMTP, or, in local
+ * development without SMTP_URL, written to the server log.
+ */
+export function emailConfig(): EmailConfig {
+  const { SMTP_URL, EMAIL_FROM } = serverEnv();
+  if (SMTP_URL && EMAIL_FROM) return { kind: "smtp", url: SMTP_URL, from: EMAIL_FROM };
+  if (publicEnv.NEXT_PUBLIC_APP_ENV !== "local") {
+    throw new Error(
+      "SMTP_URL and EMAIL_FROM are required outside local development (see .env.example).",
+    );
+  }
+  return { kind: "log", from: EMAIL_FROM ?? "Buntalk <no-reply@localhost>" };
 }
 
 export type DatabaseConfig = { kind: "postgres"; url: string } | { kind: "pglite"; dir: string };
