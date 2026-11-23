@@ -44,6 +44,12 @@ describe("change events → cache tags", () => {
     ).toEqual(["catalog"]);
   });
 
+  it("refreshes the Cake Studio menu when the ERP changes it (BUN-179)", () => {
+    expect(tagsForEvents(changeRequestSchema.parse({ type: "cake_studio" }))).toEqual([
+      "cake-studio",
+    ]);
+  });
+
   it("rejects unknown types", () => {
     expect(changeRequestSchema.safeParse({ type: "everything" }).success).toBe(false);
   });

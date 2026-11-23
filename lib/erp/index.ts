@@ -70,3 +70,18 @@ export {
   ErpUnavailableError,
   ErpValidationError,
 } from "./errors";
+
+// Cake Studio (BUN-179): menu (cached), design quotes and saved designs (live)
+export {
+  CAKE_OPTION_KINDS,
+  cakeDesignSchema,
+  getCakeDesign,
+  getCakeStudioMenu,
+  quoteCakeDesign,
+  saveCakeDesign,
+  type CakeDesign,
+  type CakeOptionKind,
+  type CakeQuote,
+  type CakeStudioMenu,
+  type SavedCakeDesign,
+} from "./cake-studio";

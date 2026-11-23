@@ -39,6 +39,7 @@
  *   makes the next 2 writes fail, to test the retry queue.
  *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
+import { handleCakeStudio, patchCakeStudio, seedCakeStudio } from "./mock-erp-cake-studio.mjs";
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -403,6 +404,8 @@ function seed() {
     products,
     banners,
     schemes,
+    // BUN-179: Cake Studio menu, prices and saved designs (scripts/mock-erp-cake-studio.mjs).
+    cakeStudio: seedCakeStudio(),
     // BUN-164/166: customers (one already exists in the ERP, e.g. a walk-in
     // shop customer, to test that signing up online links instead of duplicating).
     customers: [
@@ -769,6 +772,15 @@ const server = createServer(async (req, res) => {
     if (path === "/__mock/reset") return ((state = seed()), send(res, 200, { ok: true }));
     if (path === "/__mock/orders") return send(res, 200, { data: state.orders });
     if (path === "/__mock/customers") return send(res, 200, { data: state.customers });
+    if (path === "/__mock/cake-studio") {
+      // {"options":[{"id":5,"price":450}]}: change Cake Studio prices, like staff would.
+      const menu = patchCakeStudio(state.cakeStudio, (await readBody(req)) ?? {});
+      const webhook =
+        url.searchParams.get("webhook") !== "0"
+          ? await sendRevalidate({ type: "cake_studio" })
+          : "skipped";
+      return send(res, 200, { ok: true, menu, webhook });
+    }
     if (path === "/__mock/customers/merge") {
       // {"from":"cust-1","into":"cust-walkin"}: merge two ERP customers, like staff would.
       const body = (await readBody(req)) ?? {};
@@ -843,6 +855,12 @@ const server = createServer(async (req, res) => {
     return send(res, 401, { message: "Unauthenticated." });
   const route = path.slice(prefix.length);
   const q = url.searchParams;
+
+  if (route.startsWith("/cake-studio/")) {
+    const body = req.method === "POST" ? await readBody(req) : null;
+    const result = handleCakeStudio(state.cakeStudio, route, req.method, body);
+    if (result) return send(res, result[0], result[1]);
+  }
 
   if (route === "/categories") return send(res, 200, { data: state.categories });
   if (route.startsWith("/categories/")) {

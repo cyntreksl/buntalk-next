@@ -15,4 +15,6 @@ export const cacheTags = {
   product: (slug: string) => `product:${slug}`,
   /** Active schemes / offers (product badges, offers page). */
   schemes: "schemes",
+  /** Cake Studio menu and rules (BUN-179). */
+  cakeStudio: "cake-studio",
 } as const;
