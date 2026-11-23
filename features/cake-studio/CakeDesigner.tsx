@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -35,6 +36,8 @@ import {
 } from "@/lib/cake-studio/draft";
 import type { CakeDesign, CakeQuote } from "@/lib/erp";
 import { cx, formatPrice } from "@/lib/utils";
+import { useCartStore } from "@/features/cart/store";
+import { useAddToCart } from "@/features/cart/useAddToCart";
 import { Cake3D, shrinkPng } from "./Cake3D";
 import type { CakeGrab, CakeView } from "./scene/CakeScene";
 
@@ -215,7 +218,8 @@ function Step({
  *   price (lines and total); the ERP's own messages show if it refuses something.
  *   Tapping a part of the cake opens its step.
  * - Undo (last 30 changes) and Start over; Save gives a design code
- *   (adding it to the cart is BUN-184), with a picture of the 3D cake.
+ *   with a picture of the 3D cake. **Add to cart** (BUN-184) saves it and
+ *   adds it as a cart line; opened from the cart (`?line=`), it updates that line.
  * - On phones the steps stack and the price stays in a bar at the bottom.
  */
 const noSubscribe = () => () => {};
@@ -232,10 +236,16 @@ export function CakeDesigner({
   menu,
   initial,
   draftKey,
+  productSlug,
+  editLine,
 }: {
   menu: Menu;
   initial: CakeDesign;
   draftKey: string;
+  /** The Cake Studio product the designer was opened from, if any. */
+  productSlug?: string;
+  /** The cart line being edited ("Edit design" in the cart), if any. */
+  editLine?: string;
 }) {
   const text = useSyncExternalStore(
     noSubscribe,
@@ -257,6 +267,8 @@ export function CakeDesigner({
       start={restored ? draft : initial}
       restored={restored}
       draftKey={draftKey}
+      productSlug={productSlug}
+      editLine={editLine}
     />
   );
 }
@@ -267,20 +279,27 @@ function Designer({
   start,
   restored,
   draftKey,
+  productSlug,
+  editLine,
 }: {
   menu: Menu;
   initial: CakeDesign;
   start: CakeDesign;
   restored: boolean;
   draftKey: string;
+  productSlug?: string;
+  editLine?: string;
 }) {
+  const router = useRouter();
+  const { add: addToCart } = useAddToCart();
   const [design, setDesign] = useState(start);
   const [showRestored, setShowRestored] = useState(restored);
   const [round, setRound] = useState(0);
   const [history, setHistory] = useState<CakeDesign[]>([]);
   const [openStep, setOpenStep] = useState(1);
   const [quote, setQuote] = useState<QuoteState>({ status: "loading" });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<"save" | "cart" | null>(null);
+  const [cartProblem, setCartProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState<{
     id: string;
     total: number;
@@ -297,6 +316,7 @@ function Designer({
     setHistory((h) => pushHistory(h, design));
     setDesign(applyChange(menu, design, patch));
     setSaved(null);
+    setCartProblem(null);
   };
   const undo = () => {
     const previous = history.at(-1);
@@ -388,30 +408,68 @@ function Designer({
     }
   }
 
-  async function save() {
-    setSaving(true);
+  /**
+   * Saves the design in the ERP (with a picture of the 3D cake). "cart" then
+   * adds it to the cart (BUN-184): as a new line, or in place of the line
+   * being edited, with that line's quantity.
+   */
+  async function save(target: "save" | "cart") {
+    setSaving(target);
+    setCartProblem(null);
     try {
       const preview = await previewPicture();
       const res = await fetch("/api/cake-studio/designs", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({ design, preview }),
+        body: JSON.stringify({ design, preview, productSlug }),
       });
-      const body = await res.json();
-      if (res.ok) {
-        const shown = quote.status === "ready" ? quote.quote.total : undefined;
-        setSaved({
-          id: body.id,
-          total: body.total,
-          previewUrl: body.previewUrl,
-          shownTotal: shown !== undefined && shown !== body.total ? shown : undefined,
-        });
-        // The ERP priced it again when saving: show that price.
-        setQuote({ status: "ready", quote: body, at: Date.now() });
-      } else
-        setQuote({ status: "invalid", message: body.message, fieldErrors: body.fieldErrors ?? {} });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 422) {
+          setQuote({
+            status: "invalid",
+            message: body.message,
+            fieldErrors: body.fieldErrors ?? {},
+          });
+        } else {
+          setCartProblem(body.message ?? "We couldn't save your cake. Please try again.");
+        }
+        return;
+      }
+      const shown = quote.status === "ready" ? quote.quote.total : undefined;
+      setSaved({
+        id: body.id,
+        total: body.total,
+        previewUrl: body.previewUrl,
+        shownTotal: shown !== undefined && shown !== body.total ? shown : undefined,
+      });
+      // The ERP priced it again when saving: show that price.
+      setQuote({ status: "ready", quote: body, at: Date.now() });
+      if (target === "save") return;
+
+      if (!body.cartLine) {
+        setCartProblem(
+          "This cake size can't be ordered online yet. Your design is saved: call us with its code to order it.",
+        );
+        return;
+      }
+      const editing = editLine
+        ? useCartStore.getState().items.find((i) => i.key === editLine)
+        : undefined;
+      const added = await addToCart({
+        productSlug: body.cartLine.productSlug,
+        skuId: body.cartLine.skuId,
+        quantity: editing?.quantity ?? 1,
+        // The server fills in the ERP's summary and picture when it checks the line.
+        customization: { designId: body.id, summary: [], previewUrl: body.previewUrl },
+        replaceKey: editing?.key,
+      });
+      if (added) {
+        clearDraft(draftKey);
+        if (editing) router.push("/cart");
+      }
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   }
 
@@ -765,6 +823,7 @@ function Designer({
   // A tapped part of the cake (PART_STEPS) opens its step: stand → size, slice → flavour, …
   const onPart = useCallback((part: number) => setOpenStep([2, 4, 5, 6, 7][part] ?? 1), []);
 
+  const canSave = quote.status === "ready" && Object.keys(problems).length === 0 && !saving;
   const total = quote.status === "ready" ? quote.quote.total : null;
   // When it can be ready: the ERP's date for this design (else the size's), and the notice behind it.
   const readyOn =
@@ -860,17 +919,32 @@ function Designer({
               Start over
             </Button>
           </div>
-          {/* On phones, Save is in the bottom bar instead. */}
+          {/* On phones, Add to cart is in the bottom bar instead. */}
           <div className="hidden lg:block">
             <Button
               fullWidth
-              onClick={save}
-              loading={saving}
-              disabled={quote.status !== "ready" || Object.keys(problems).length > 0}
+              onClick={() => save("cart")}
+              loading={saving === "cart"}
+              disabled={!canSave}
             >
-              Save design
+              {editLine ? "Update cart" : "Add to cart"}
             </Button>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => save("save")}
+            loading={saving === "save"}
+            disabled={!canSave}
+          >
+            Save design for later
+          </Button>
+          {cartProblem && (
+            <p role="alert" className="text-body-sm text-danger font-semibold">
+              {cartProblem}
+            </p>
+          )}
           {saved && (
             <p
               role="status"
@@ -894,7 +968,7 @@ function Designer({
                 >
                   Your design code is {saved.id}
                 </Link>
-                . Adding it to the cart is coming soon.
+                .
                 {saved.shownTotal !== undefined && (
                   <>
                     {" "}
@@ -934,7 +1008,7 @@ function Designer({
         ))}
       </Card>
 
-      {/* Phones: the price and Save stay in reach at the bottom. */}
+      {/* Phones: the price and Add to cart stay in reach at the bottom. */}
       <div className="border-border bg-surface fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t px-4 py-3 shadow-lg lg:hidden">
         <span className="flex flex-col">
           <span className="text-caption text-muted-foreground">Your cake</span>
@@ -942,11 +1016,11 @@ function Designer({
         </span>
         <Button
           size="sm"
-          onClick={save}
-          loading={saving}
-          disabled={quote.status !== "ready" || Object.keys(problems).length > 0}
+          onClick={() => save("cart")}
+          loading={saving === "cart"}
+          disabled={!canSave}
         >
-          Save design
+          {editLine ? "Update cart" : "Add to cart"}
         </Button>
       </div>
     </div>

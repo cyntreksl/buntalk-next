@@ -8,6 +8,7 @@ import { lineTotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import { CartLineThumb } from "./CartLineThumb";
 import { useCartStore } from "./store";
+import { editDesignHref } from "./cake";
 import { cartNoticeText, useServerCart, type ServerCartState } from "./useServerCart";
 
 // The cart is read from localStorage, which only exists in the browser.
@@ -115,6 +116,13 @@ export function CartContents({ empty, footer }: { empty?: ReactNode; footer?: Re
                               ))}
                             </ul>
                           )}
+                          <Link
+                            href={editDesignHref(item)!}
+                            className="text-body-sm text-primary self-start font-semibold underline"
+                          >
+                            Edit design
+                            <span className="sr-only">: {item.name}</span>
+                          </Link>
                         </div>
                       )}
                       <span className="text-body-sm text-muted-foreground">

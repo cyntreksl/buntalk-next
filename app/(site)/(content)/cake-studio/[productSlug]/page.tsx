@@ -69,6 +69,7 @@ export default async function CustomizeProductPage({
           menu={menu}
           preselect={{ productId: product.id, skuId, sizeId }}
           title={`Cake Studio: ${product.name}`}
+          productSlug={product.slug}
         />
       </Suspense>
     </Container>

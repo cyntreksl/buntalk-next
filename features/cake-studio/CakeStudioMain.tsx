@@ -35,7 +35,8 @@ async function initialDesign(
  * The main part of a Cake Studio page:
  * - "native" (default, BUN-181): the storefront's designer on the ERP's menu
  *   and pricing, starting from a saved design (`?design=`), a favourite
- *   (`?favourite=`) or the product's cake size;
+ *   (`?favourite=`) or the product's cake size; `?line=` (with `?design=`)
+ *   edits that cart line (BUN-184);
  * - "embed" (CAKE_STUDIO_MODE=embed, BUN-180): the ERP's Cake Studio in a frame;
  * - `?view=menu`, or no menu: the menu list (or a message).
  *
@@ -49,6 +50,8 @@ export async function CakeStudioMain({
   designId,
   favouriteId,
   title,
+  productSlug,
+  editLine,
 }: {
   menu: CakeStudioMenu | null;
   preselect?: Preselect;
@@ -56,6 +59,10 @@ export async function CakeStudioMain({
   designId?: string;
   favouriteId?: number;
   title?: string;
+  /** The Cake Studio product the page is for (`/cake-studio/{productSlug}`). */
+  productSlug?: string;
+  /** The cart line being edited (`?line=`, from "Edit design" in the cart). */
+  editLine?: string;
 }) {
   await connection();
   const mode = serverEnv().CAKE_STUDIO_MODE ?? "native";
@@ -88,6 +95,8 @@ export async function CakeStudioMain({
         menu={menu}
         initial={initial}
         draftKey={draftKey({ designId, favouriteId, sizeId: preselect?.sizeId })}
+        productSlug={productSlug}
+        editLine={editLine}
       />
     );
   }

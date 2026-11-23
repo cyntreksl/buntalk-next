@@ -24,13 +24,15 @@ async function loadMenu(): Promise<CakeStudioMenu | null> {
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 async function Main({ searchParams }: Pick<PageProps<"/cake-studio">, "searchParams">) {
-  const { view, design, favourite } = await searchParams;
+  const { view, design, favourite, line } = await searchParams;
+  const editLine = one(line);
   return (
     <CakeStudioMain
       menu={await loadMenu()}
       view={one(view)}
       designId={one(design)}
       favouriteId={Number(one(favourite)) || undefined}
+      editLine={design && editLine && editLine.length <= 300 ? editLine : undefined}
     />
   );
 }
@@ -40,7 +42,8 @@ async function Main({ searchParams }: Pick<PageProps<"/cake-studio">, "searchPar
  * menu and pricing (or, with CAKE_STUDIO_MODE=embed, the ERP's own Cake
  * Studio in a frame). `?design={id}` opens a saved design (shown priced again
  * today, and loaded into the designer); `?favourite={id}` starts from a
- * favourite; `?view=menu` lists the menu.
+ * favourite; `?view=menu` lists the menu. `?design={id}&line={cart line}`
+ * edits a cake in the cart ("Update cart" replaces that line, BUN-184).
  * For a cake product, `/cake-studio/{productSlug}` opens with that cake chosen.
  */
 export default async function CakeStudioPage({ searchParams }: PageProps<"/cake-studio">) {

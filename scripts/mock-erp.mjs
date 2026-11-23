@@ -41,6 +41,7 @@
  */
 import {
   cakeDesignPreview,
+  cakeQuote,
   handleCakeStudio,
   patchCakeStudio,
   seedCakeStudio,
@@ -540,14 +541,73 @@ function updateCustomer(id, body) {
   return { status: 200, body: { data: customer } };
 }
 
-/** POST /orders: re-prices with the scheme engine and refuses (409) if the storefront's total differs. */
+/**
+ * POST /orders: re-prices with the scheme engine and refuses (409) if the storefront's total differs.
+ * Cake Studio lines (`cake_design`, BUN-184 / ERP ticket BUN-252) are priced from their design, as
+ * Cake Studio prices them, and get no offers.
+ */
 function createOrder(body) {
   if (!body.customer_link_id || !Array.isArray(body.lines) || body.lines.length === 0) {
     return { status: 422, body: { message: "Customer and lines are required.", errors: {} } };
   }
-  const priced = quote({ customer_link_id: body.customer_link_id, lines: body.lines });
+  const cakeLines = body.lines.filter((l) => l.cake_design);
+  const productLines = body.lines.filter((l) => !l.cake_design);
+  const cakesOut = [];
+  let cakeCents = 0;
+  for (const l of cakeLines) {
+    const priced = cakeQuote(state.cakeStudio, l.cake_design.config);
+    if (priced.error) {
+      return {
+        status: 422,
+        body: {
+          message: `A cake can't be made: ${priced.body.message}`,
+          errors: priced.body.errors,
+        },
+      };
+    }
+    const unit = priced.data.total;
+    if (unit !== l.unit_price) {
+      return {
+        status: 409,
+        body: { message: `A cake's price has changed (ERP ${unit}, storefront ${l.unit_price}).` },
+      };
+    }
+    cakeCents += cents(Number(unit)) * l.quantity;
+    const p = state.products.find((x) => x.link_id === l.product_link_id);
+    const sku = p?.skus.find((x) => x.link_id === l.sku_link_id);
+    cakesOut.push({
+      product_link_id: l.product_link_id,
+      sku_link_id: l.sku_link_id,
+      product_name: p?.name ?? "Cake Studio cake",
+      sku_label: sku ? sku.options.map((o) => o.value).join(" / ") : null,
+      quantity: l.quantity,
+      unit_price: unit,
+      discount: "0.00",
+      line_total: money(cents(Number(unit)) * l.quantity),
+      cake_design: {
+        design_id: l.cake_design.design_id,
+        summary: priced.data.summary.map((r) => `${r.label}: ${r.value}`),
+      },
+    });
+  }
+  const priced =
+    productLines.length > 0
+      ? quote({ customer_link_id: body.customer_link_id, lines: productLines })
+      : {
+          data: {
+            lines: [],
+            subtotal: "0.00",
+            discount_total: "0.00",
+            total: "0.00",
+            currency: "LKR",
+          },
+        };
   if (priced.error) return { status: priced.error, body: { message: priced.message } };
-  const q = priced.data;
+  const q = {
+    ...priced.data,
+    subtotal: money(cents(Number(priced.data.subtotal)) + cakeCents),
+    total: money(cents(Number(priced.data.total)) + cakeCents),
+  };
   if (q.total !== body.total) {
     return {
       status: 409,
@@ -568,20 +628,22 @@ function createOrder(body) {
     storefront_order_number: body.storefront_order_number,
     fulfilment: body.fulfilment,
     payment: body.payment,
-    lines: q.lines.map((l) => {
-      const p = state.products.find((x) => x.link_id === l.product_link_id);
-      const sku = p?.skus.find((x) => x.link_id === l.sku_link_id);
-      return {
-        product_link_id: l.product_link_id,
-        sku_link_id: l.sku_link_id,
-        product_name: p?.name ?? "Unknown",
-        sku_label: sku ? sku.options.map((o) => o.value).join(" / ") : null,
-        quantity: l.quantity,
-        unit_price: l.unit_price,
-        discount: l.discount,
-        line_total: l.line_total,
-      };
-    }),
+    lines: q.lines
+      .map((l) => {
+        const p = state.products.find((x) => x.link_id === l.product_link_id);
+        const sku = p?.skus.find((x) => x.link_id === l.sku_link_id);
+        return {
+          product_link_id: l.product_link_id,
+          sku_link_id: l.sku_link_id,
+          product_name: p?.name ?? "Unknown",
+          sku_label: sku ? sku.options.map((o) => o.value).join(" / ") : null,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          discount: l.discount,
+          line_total: l.line_total,
+        };
+      })
+      .concat(cakesOut),
     subtotal: q.subtotal,
     discount_total: q.discount_total,
     delivery_fee: body.delivery_fee ?? "0.00",

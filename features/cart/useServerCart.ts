@@ -195,6 +195,11 @@ export function removedNoticeText(removed: RemovedNotice[]): string | null {
       removed.length === 1 ? "was" : "were"
     } removed from your cart.`;
   }
+  if (removed.every((r) => r.reason === "design_unavailable")) {
+    return `${names}: the cake design can't be made any more (an option was taken off the menu), so it ${
+      removed.length === 1 ? "was" : "were"
+    } removed from your cart. Please design it again in Cake Studio.`;
+  }
   const soldOut = removed.every((r) => r.reason === "sold_out");
   const verb = removed.length === 1 ? "was" : "were";
   return soldOut

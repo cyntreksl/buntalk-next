@@ -99,13 +99,19 @@ async function OrderDetails({ params, searchParams }: PageProps<"/orders/[number
           <ul className="divide-border border-border divide-y border-y">
             {order.lines.map((line) => (
               <li
-                key={`${line.productSlug}:${line.skuId ?? ""}`}
+                key={`${line.productSlug}:${line.skuId ?? ""}:${line.cake?.designId ?? ""}`}
                 className="flex justify-between gap-4 py-3"
               >
                 <span className="min-w-0">
                   <span className="font-semibold">{line.name}</span>
                   {line.variant && <span className="text-muted-foreground"> ({line.variant})</span>}
                   <span className="text-muted-foreground"> × {line.quantity}</span>
+                  {/* A Cake Studio cake (BUN-184): what was chosen. */}
+                  {line.cake && line.cake.summary.length > 0 && (
+                    <span className="text-body-sm text-muted-foreground block">
+                      {line.cake.summary.join(" · ")}
+                    </span>
+                  )}
                 </span>
                 <span className="shrink-0 font-semibold">{money(line.lineSubtotal)}</span>
               </li>

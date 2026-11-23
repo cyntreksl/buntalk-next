@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const quoteCakeDesign = vi.fn();
 const saveCakeDesign = vi.fn();
 const getCakeDesign = vi.fn();
+const cakeLineFor = vi.fn();
 vi.mock("@/lib/auth", () => ({ getCustomerId: async () => null }));
+vi.mock("@/lib/cake-studio/cart.server", () => ({
+  cakeLineFor: (...a: unknown[]) => cakeLineFor(...a),
+}));
 vi.mock("@/lib/erp", async () => {
   const errors = await import("@/lib/erp/errors");
   const { cakeDesignSchema } = await import("@/lib/erp/cake-studio");
@@ -13,6 +17,7 @@ vi.mock("@/lib/erp", async () => {
     quoteCakeDesign: (...a: unknown[]) => quoteCakeDesign(...a),
     saveCakeDesign: (...a: unknown[]) => saveCakeDesign(...a),
     getCakeDesign: (...a: unknown[]) => getCakeDesign(...a),
+    getCakeStudioMenu: async () => ({ sizes: [] }),
   };
 });
 vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
@@ -40,6 +45,8 @@ beforeEach(() => {
   quoteCakeDesign.mockReset();
   saveCakeDesign.mockReset();
   getCakeDesign.mockReset();
+  cakeLineFor.mockReset();
+  cakeLineFor.mockResolvedValue({ productSlug: "design-your-own-cake", skuId: "sku-1kg" });
 });
 
 describe("POST /api/cake-studio/quote", () => {
@@ -77,6 +84,21 @@ describe("saved designs", () => {
     expect(saveCakeDesign.mock.calls[0][1]).toMatchObject({
       idempotencyKey: "cake-design:abc12345",
     });
+  });
+
+  it("says which product and size the saved cake is added to the cart as (BUN-184)", async () => {
+    saveCakeDesign.mockResolvedValue({ ...quote, id: "d-1" });
+    const res = await designsRoute.POST(post({ design, productSlug: "design-your-own-cake" }));
+    expect(await res.json()).toMatchObject({
+      id: "d-1",
+      cartLine: { productSlug: "design-your-own-cake", skuId: "sku-1kg" },
+    });
+    expect(cakeLineFor.mock.calls[0][1]).toBe(1);
+    expect(cakeLineFor.mock.calls[0][2]).toBe("design-your-own-cake");
+
+    cakeLineFor.mockResolvedValue(null);
+    const unsold = await designsRoute.POST(post({ design }));
+    expect(await unsold.json()).toMatchObject({ cartLine: null });
   });
 
   it("sends the picture of the 3D cake without its data: prefix, and refuses one that isn't a PNG", async () => {
