@@ -10,6 +10,7 @@ import {
   deleteStaleGuestCarts,
   hashCartToken,
   loadCart,
+  mergeGuestCart,
   newCartToken,
   normalizeLines,
   saveCart,
@@ -82,5 +83,72 @@ describe("saved carts", () => {
     expect(await deleteStaleGuestCarts(db)).toBe(1);
     expect(await loadCart(db, { tokenHash: "new" })).not.toBeNull();
     expect(await loadCart(db, { customerId: "cust-1" })).not.toBeNull();
+  });
+});
+
+describe("saving with a version check (BUN-178)", () => {
+  it("saves when nothing changed since the browser last saw the cart", async () => {
+    const first = await saveCart(db, { tokenHash: "h" }, normalizeLines([line("fish-bun", 1)]));
+    const next = await saveCart(db, { tokenHash: "h" }, normalizeLines([line("fish-bun", 2)]), {
+      baseUpdatedAt: first.updatedAt,
+    });
+    expect(next.conflict).toBeUndefined();
+    expect(next.lines[0].quantity).toBe(2);
+  });
+
+  it("refuses to overwrite a cart that changed since, and returns it", async () => {
+    const first = await saveCart(db, { customerId: "c1" }, normalizeLines([line("cake", 1)]));
+    await new Promise((r) => setTimeout(r, 5));
+    await saveCart(db, { customerId: "c1" }, normalizeLines([line("cake", 2)]));
+    const stale = await saveCart(db, { customerId: "c1" }, normalizeLines([line("bun", 1)]), {
+      baseUpdatedAt: first.updatedAt,
+    });
+    expect(stale.conflict).toBe(true);
+    expect(stale.lines.map((l) => [l.key, l.quantity])).toEqual([["cake", 2]]);
+    expect((await loadCart(db, { customerId: "c1" }))?.lines[0].quantity).toBe(2);
+  });
+
+  it("refuses a browser that never saw the saved cart, but not a brand-new cart", async () => {
+    await saveCart(db, { customerId: "c1" }, normalizeLines([line("cake", 1)]));
+    const unseen = await saveCart(db, { customerId: "c1" }, [], { baseUpdatedAt: null });
+    expect(unseen.conflict).toBe(true);
+    const fresh = await saveCart(db, { tokenHash: "new" }, normalizeLines([line("bun", 1)]), {
+      baseUpdatedAt: null,
+    });
+    expect(fresh.conflict).toBeUndefined();
+  });
+});
+
+describe("mergeGuestCart (sign-in, BUN-178)", () => {
+  it("moves the guest cart into the customer's cart and deletes the guest cart", async () => {
+    await saveCart(
+      db,
+      { customerId: "c1" },
+      normalizeLines([line("cake", 1), line("fish-bun", 2)]),
+    );
+    await saveCart(db, { tokenHash: "g" }, normalizeLines([line("fish-bun", 3), line("roll", 1)]));
+    const merged = await mergeGuestCart(db, { tokenHash: "g", customerId: "c1" });
+    expect(merged.lines.map((l) => [l.key, l.quantity])).toEqual([
+      ["cake", 1],
+      ["fish-bun", 5],
+      ["roll", 1],
+    ]);
+    expect(merged.merged).toBe(2);
+    expect(await loadCart(db, { tokenHash: "g" })).toBeNull();
+    expect((await loadCart(db, { customerId: "c1" }))?.lines).toEqual(merged.lines);
+  });
+
+  it("creates the customer's cart from the guest cart when there is none", async () => {
+    await saveCart(db, { tokenHash: "g" }, normalizeLines([line("roll", 2)]));
+    const merged = await mergeGuestCart(db, { tokenHash: "g", customerId: "new-customer" });
+    expect(merged.lines.map((l) => [l.key, l.quantity])).toEqual([["roll", 2]]);
+  });
+
+  it("is safe to run twice: the second time changes nothing", async () => {
+    await saveCart(db, { tokenHash: "g" }, normalizeLines([line("roll", 2)]));
+    await mergeGuestCart(db, { tokenHash: "g", customerId: "c1" });
+    const again = await mergeGuestCart(db, { tokenHash: "g", customerId: "c1" });
+    expect(again.merged).toBe(0);
+    expect(again.lines.map((l) => [l.key, l.quantity])).toEqual([["roll", 2]]);
   });
 });
