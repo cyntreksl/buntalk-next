@@ -137,6 +137,8 @@ const erpCakeQuoteSchema = z.object({
 const erpSavedDesignSchema = erpCakeQuoteSchema.extend({
   id: z.string().min(1),
   created_at: z.string().nullable().optional(),
+  /** NEW (BUN-182, ticket BUN-260): picture of the design, stored by the ERP. */
+  preview_url: z.url().nullable().optional().catch(null),
 });
 
 export type CakeStudioMenu = {
@@ -197,7 +199,12 @@ export type CakeQuote = {
   earliestDate?: string;
 };
 
-export type SavedCakeDesign = CakeQuote & { id: string; createdAt?: string };
+export type SavedCakeDesign = CakeQuote & {
+  id: string;
+  createdAt?: string;
+  /** Picture of the design (the 3D preview at save time), for the cart, order and kitchen. */
+  previewUrl?: string;
+};
 
 const orUndefined = <T>(v: T | null | undefined): T | undefined => v ?? undefined;
 
@@ -255,6 +262,13 @@ export function toCakeStudioMenu(m: z.infer<typeof erpCakeMenuSchema>): CakeStud
   };
 }
 
+const saved = (d: z.infer<typeof erpSavedDesignSchema>): SavedCakeDesign => ({
+  ...toQuote(d),
+  id: d.id,
+  createdAt: orUndefined(d.created_at),
+  previewUrl: orUndefined(d.preview_url),
+});
+
 const toQuote = (q: z.infer<typeof erpCakeQuoteSchema>): CakeQuote => ({
   design: cakeDesignSchema.parse(q.design),
   lines: q.lines,
@@ -294,16 +308,25 @@ export async function quoteCakeDesign(
 /** Saves a design in the ERP and returns its id (a saved design never changes). */
 export async function saveCakeDesign(
   design: CakeDesign,
-  options: { customerId?: string | null; idempotencyKey: string },
+  options: {
+    customerId?: string | null;
+    idempotencyKey: string;
+    /** PNG of the 3D preview, base64 without the data: prefix (BUN-182). */
+    previewPng?: string;
+  },
 ): Promise<SavedCakeDesign> {
   const { data } = await erpRequest({
     method: "POST",
     path: "/cake-studio/designs",
     schema: one(erpSavedDesignSchema),
     idempotencyKey: options.idempotencyKey,
-    body: { design, customer: options.customerId ?? null },
+    body: {
+      design,
+      customer: options.customerId ?? null,
+      ...(options.previewPng ? { preview_png: options.previewPng } : {}),
+    },
   });
-  return { ...toQuote(data), id: data.id, createdAt: orUndefined(data.created_at) };
+  return saved(data);
 }
 
 /**
@@ -319,5 +342,5 @@ export async function getCakeDesign(
     one(erpSavedDesignSchema),
     options.customerId ? { customer: options.customerId } : undefined,
   );
-  return { ...toQuote(data), id: data.id, createdAt: orUndefined(data.created_at) };
+  return saved(data);
 }

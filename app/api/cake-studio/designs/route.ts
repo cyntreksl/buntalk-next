@@ -9,12 +9,17 @@ import { cakeDesignSchema, saveCakeDesign } from "@/lib/erp";
  * can be opened again later (`GET /api/cake-studio/designs/{id}`, or the
  * Cake Studio page with `?design={id}`).
  *
- *   POST /api/cake-studio/designs   { design: {…} }
+ *   POST /api/cake-studio/designs   { design: {…}, preview?: "data:image/png;base64,…" }
  *   Idempotency-Key: <uuid>          optional; a retry with the same key saves once
- *   201 { id, design, lines, total, summary, earliestDate, createdAt }
+ *   201 { id, design, lines, total, summary, earliestDate, createdAt, previewUrl }
  *   422 invalid design · 400 not a design · 503 ERP unavailable
  */
-const bodySchema = z.object({ design: cakeDesignSchema });
+/** A picture of the 3D preview (BUN-182): a PNG data URL, at most about 1.5 MB. */
+const PREVIEW = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/;
+const bodySchema = z.object({
+  design: cakeDesignSchema,
+  preview: z.string().max(2_000_000).regex(PREVIEW).optional(),
+});
 const keySchema = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/);
 
 export async function POST(request: Request) {
@@ -30,6 +35,7 @@ export async function POST(request: Request) {
     const saved = await saveCakeDesign(parsed.data.design, {
       customerId: await getCustomerId(),
       idempotencyKey: `cake-design:${key.success ? key.data : randomUUID()}`,
+      previewPng: parsed.data.preview?.match(PREVIEW)?.[1],
     });
     return Response.json(saved, { status: 201, headers: noStore });
   } catch (error) {

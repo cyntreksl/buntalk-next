@@ -79,6 +79,29 @@ describe("saved designs", () => {
     });
   });
 
+  it("sends the picture of the 3D cake without its data: prefix, and refuses one that isn't a PNG", async () => {
+    saveCakeDesign.mockResolvedValue({
+      ...quote,
+      id: "d-1",
+      previewUrl: "https://img.test/d-1.png",
+    });
+    const res = await designsRoute.POST(
+      post({ design, preview: "data:image/png;base64,iVBORw0KGgo=" }),
+    );
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ previewUrl: "https://img.test/d-1.png" });
+    expect(saveCakeDesign.mock.calls[0][1]).toMatchObject({ previewPng: "iVBORw0KGgo=" });
+
+    for (const preview of [
+      "data:image/jpeg;base64,AAAA",
+      "data:image/png;base64,<svg>",
+      "x".repeat(10),
+    ]) {
+      expect((await designsRoute.POST(post({ design, preview }))).status).toBe(400);
+    }
+    expect(saveCakeDesign).toHaveBeenCalledTimes(1);
+  });
+
   it("loads a design by its id, and 404s for an unknown or malformed id", async () => {
     getCakeDesign.mockResolvedValue({ ...quote, id: "d-1" });
     const ok = await designRoute.GET(new Request("http://x"), {

@@ -340,6 +340,19 @@ export function cakeQuote(studio, picks) {
   };
 }
 
+const ORIGIN = `http://127.0.0.1:${process.env.MOCK_ERP_PORT ?? 4010}`;
+const savedExtras = (saved) => ({
+  id: saved.id,
+  created_at: saved.created_at,
+  preview_url: saved.preview ? `${ORIGIN}/images/cake-designs/${saved.id}.png` : null,
+});
+
+/** The stored preview picture of a saved design, or null (GET /images/cake-designs/{id}.png). */
+export function cakeDesignPreview(studio, path) {
+  const m = path.match(/^\/images\/cake-designs\/([A-Za-z0-9-]+)\.png$/);
+  return m ? (studio.designs.find((d) => d.id === m[1])?.preview ?? null) : null;
+}
+
 /**
  * Handles …/cake-studio/* routes. Returns [status, body] or null when the
  * route isn't a Cake Studio one.
@@ -354,8 +367,12 @@ export function handleCakeStudio(studio, route, method, body) {
     const q = cakeQuote(studio, body?.design);
     if (q.error) return [q.error, q.body];
     const saved = { id: randomUUID(), config: q.data.design, created_at: new Date().toISOString() };
+    // BUN-182: the picture of the 3D preview, served at /images/cake-designs/{id}.png.
+    if (typeof body?.preview_png === "string" && body.preview_png.length > 0) {
+      saved.preview = Buffer.from(body.preview_png, "base64");
+    }
     studio.designs.push(saved);
-    return [201, { data: { ...q.data, id: saved.id, created_at: saved.created_at } }];
+    return [201, { data: { ...q.data, ...savedExtras(saved) } }];
   }
   const m = route.match(/^\/cake-studio\/designs\/([A-Za-z0-9-]+)$/);
   if (m && method === "GET") {
@@ -364,7 +381,7 @@ export function handleCakeStudio(studio, route, method, body) {
     // Priced again with today's menu and prices.
     const q = cakeQuote(studio, saved.config);
     if (q.error) return [q.error, q.body];
-    return [200, { data: { ...q.data, id: saved.id, created_at: saved.created_at } }];
+    return [200, { data: { ...q.data, ...savedExtras(saved) } }];
   }
   return null;
 }

@@ -39,7 +39,12 @@
  *   makes the next 2 writes fail, to test the retry queue.
  *   Change one: POST /__mock/schemes {"link_id":"s-cake-week","is_active":false}
  */
-import { handleCakeStudio, patchCakeStudio, seedCakeStudio } from "./mock-erp-cake-studio.mjs";
+import {
+  cakeDesignPreview,
+  handleCakeStudio,
+  patchCakeStudio,
+  seedCakeStudio,
+} from "./mock-erp-cake-studio.mjs";
 import { handleCakeStudioEmbed } from "./mock-erp-cake-studio-embed.mjs";
 import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -754,6 +759,14 @@ const server = createServer(async (req, res) => {
         `<text x="400" y="640" font-family="sans-serif" font-size="56" font-weight="700" text-anchor="middle" fill="#4a2511">${label}</text>` +
         `</svg>`,
     );
+  }
+
+  // BUN-182: pictures of saved Cake Studio designs.
+  if (path.startsWith("/images/cake-designs/")) {
+    const png = cakeDesignPreview(state.cakeStudio, path);
+    if (!png) return send(res, 404, { message: "Not Found" });
+    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "max-age=3600" });
+    return res.end(png);
   }
 
   // Test images
