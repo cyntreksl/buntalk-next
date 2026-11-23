@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
 import { accountNav } from "@/features/account/nav";
+import { useAuthDialog } from "@/features/auth/dialog";
+import { SignOutButton } from "@/features/auth/SignOutButton";
 import { ChevronDownIcon, UserIcon, useDismiss } from "@/components/ui";
 import { cx } from "@/lib/utils";
 
-type SessionStatus = { signedIn: boolean };
+type SessionStatus = { signedIn: boolean; firstName: string | null };
 
 /** Asks the server whether the visitor is signed in (see app/api/session/route.ts). */
 export function useSessionStatus() {
@@ -25,7 +27,8 @@ export function useSessionStatus() {
 
 /**
  * Account / sign-in menu. A button that opens a small dropdown:
- * signed in → account pages; signed out → sign in.
+ * signed in → a greeting, the account pages and Sign out; signed out → Sign in
+ * and Create an account, in the shared sign-in dialog (BUN-186).
  * Esc, clicking outside or tabbing away closes it.
  */
 export function AccountMenu() {
@@ -46,6 +49,7 @@ export function AccountMenu() {
 
   const { data } = useSessionStatus();
   const signedIn = data?.signedIn ?? false;
+  const showAuth = useAuthDialog((state) => state.show);
 
   const itemClasses =
     "text-body-sm hover:bg-surface-muted block rounded-sm px-3 py-2 font-semibold text-foreground";
@@ -62,7 +66,7 @@ export function AccountMenu() {
       >
         <UserIcon size={22} />
         <span className="text-body-sm hidden font-bold lg:inline">
-          {signedIn ? "Account" : "Sign in"}
+          {signedIn ? (data?.firstName ?? "Account") : "Sign in"}
         </span>
         <span className="sr-only lg:hidden">{signedIn ? "Account menu" : "Sign in menu"}</span>
         <ChevronDownIcon
@@ -77,6 +81,11 @@ export function AccountMenu() {
       >
         {signedIn ? (
           <nav aria-label="Account">
+            {data?.firstName && (
+              <p className="text-body-sm text-muted-foreground px-3 pt-1 pb-2">
+                Hello, {data.firstName}
+              </p>
+            )}
             <ul>
               {accountNav.map((item) => (
                 <li key={item.id}>
@@ -86,19 +95,35 @@ export function AccountMenu() {
                 </li>
               ))}
             </ul>
+            <div className="border-border mt-1 border-t px-1 pt-2">
+              <SignOutButton variant="ghost" className="w-full" />
+            </div>
           </nav>
         ) : (
           <div className="flex flex-col gap-2 p-1">
             <p className="text-body-sm text-muted-foreground px-2">
               Sign in to see your orders and saved addresses.
             </p>
-            {/* TODO(BUN-186): link to the sign-in and register pages. */}
-            <Link
-              href="/account"
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                showAuth("sign-in");
+              }}
               className="bg-primary text-primary-foreground hover:bg-primary-hover text-body-sm block rounded-full px-3 py-2 text-center font-bold"
             >
               Sign in
-            </Link>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                showAuth("sign-up");
+              }}
+              className="text-body-sm text-primary py-1 text-center font-semibold underline"
+            >
+              Create an account
+            </button>
           </div>
         )}
       </div>

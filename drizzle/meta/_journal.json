@@ -43,6 +43,13 @@
       "when": 1795410741723,
       "tag": "0005_carts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795442240695,
+      "tag": "0006_auth",
+      "breakpoints": true
     }
   ]
 }

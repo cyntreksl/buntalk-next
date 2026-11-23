@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Addresses" };
 export default function AccountAddressesPage() {
   return (
     <AccountTemplate active="addresses" title="Addresses">
-      <AccountGate>
+      <AccountGate returnTo="/account/addresses">
         <Card padding="lg">
           <p className="text-muted-foreground">Your saved delivery addresses will appear here.</p>
         </Card>

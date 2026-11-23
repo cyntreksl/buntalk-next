@@ -42,6 +42,11 @@ const serverSchema = z.object({
   CAKE_STUDIO_EMBED_URL: optional(z.url()),
   // Shared secret the storefront signs Cake Studio embed sessions with (HMAC-SHA256), at least 16 characters
   CAKE_STUDIO_EMBED_SECRET: optional(z.string().min(16)),
+  // Sign-in (BUN-186): secret that signs session cookies, at least 32 random characters
+  // (e.g. `openssl rand -base64 32`). Required outside local development.
+  AUTH_SECRET: optional(z.string().min(32)),
+  // Sign-in: the site's public origin, if different from NEXT_PUBLIC_SITE_URL.
+  AUTH_URL: optional(z.url()),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -86,6 +91,24 @@ export function erpConfig(): ErpConfig | null {
  */
 export function isSampleCatalogEnabled(): boolean {
   return erpConfig() === null && publicEnv.NEXT_PUBLIC_APP_ENV === "local";
+}
+
+/** Used only in local development when AUTH_SECRET isn't set. Never valid anywhere else. */
+const LOCAL_AUTH_SECRET = "local-development-only-auth-secret-not-for-production";
+
+/**
+ * Sign-in settings (BUN-186): the secret that signs session cookies and the
+ * site's origin. Outside local development AUTH_SECRET is required.
+ */
+export function authConfig(): { secret: string; baseUrl: string } {
+  const { AUTH_SECRET, AUTH_URL } = serverEnv();
+  if (!AUTH_SECRET && publicEnv.NEXT_PUBLIC_APP_ENV !== "local") {
+    throw new Error("AUTH_SECRET is required outside local development (see .env.example).");
+  }
+  return {
+    secret: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
+    baseUrl: (AUTH_URL ?? publicEnv.NEXT_PUBLIC_SITE_URL).replace(/\/$/, ""),
+  };
 }
 
 export type DatabaseConfig = { kind: "postgres"; url: string } | { kind: "pglite"; dir: string };

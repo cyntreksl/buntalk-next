@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Orders" };
 export default function AccountOrdersPage() {
   return (
     <AccountTemplate active="orders" title="Orders">
-      <AccountGate>
+      <AccountGate returnTo="/account/orders">
         <EmptyState
           icon={<BagIcon size={32} />}
           title="No orders yet"

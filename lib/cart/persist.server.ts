@@ -11,7 +11,7 @@ import { mergeCarts } from "./merge";
 /**
  * Saved carts (BUN-175). The browser keeps a copy for speed; the server copy
  * makes the cart survive a cleared browser and, once sign-in exists
- * (BUN-186), follow the customer across devices.
+ * (BUN-186: the signed-in user id), follow the customer across devices.
  *
  * Saving is cheap (no ERP call). Every line still goes through the ERP check
  * when it's added (POST /api/cart/items) and when the cart or checkout opens

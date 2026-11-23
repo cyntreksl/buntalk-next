@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { CheckoutTemplate } from "@/components/layout/templates";
 import { Card, Skeleton } from "@/components/ui";
 import { CartSummary } from "@/features/cart";
+import { SignInButton } from "@/features/auth/SignInButton";
 import { getSession } from "@/lib/auth";
 
 // Checkout: checkout template under the minimal header. Dynamic, rendered per
@@ -11,12 +12,24 @@ import { getSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Checkout" };
 
+/**
+ * Guests can check out (BUN-197), so checkout isn't a protected page: it
+ * offers sign-in in the shared dialog and stays on checkout afterwards (BUN-186).
+ */
 async function CheckoutCustomer() {
   const session = await getSession();
+  if (session) {
+    return (
+      <p className="text-muted-foreground">
+        Checking out as {session.name} ({session.email}).
+      </p>
+    );
+  }
   return (
-    <p className="text-muted-foreground">
-      {session ? "Checking out as a signed-in customer." : "Checking out as a guest."}
-    </p>
+    <div className="flex flex-wrap items-center gap-3">
+      <p className="text-muted-foreground">Checking out as a guest. Have an account?</p>
+      <SignInButton>Sign in</SignInButton>
+    </div>
   );
 }
 

@@ -32,15 +32,17 @@ npm run dev                 # http://localhost:3000
 
 All variables are documented in [`.env.example`](.env.example). Copy it to `.env.local` for local work; staging and production values are set in the hosting/CI environment and are never committed.
 
-| Variable               | Scope  | Purpose                                                 |
-| ---------------------- | ------ | ------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`                      |
-| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links)           |
-| `ERP_API_BASE_URL`     | server | ERP API base URL                                        |
-| `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser |
-| `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                 |
-| `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)          |
-| `ERP_WEBHOOK_SECRET`   | server | Secret the ERP signs its webhooks with (HMAC-SHA256)    |
+| Variable               | Scope  | Purpose                                                                       |
+| ---------------------- | ------ | ----------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_ENV`  | public | `local`, `staging` or `production`                                            |
+| `NEXT_PUBLIC_SITE_URL` | public | Canonical site URL (metadata, absolute links)                                 |
+| `ERP_API_BASE_URL`     | server | ERP API base URL                                                              |
+| `ERP_API_KEY`          | server | ERP storefront credential, never exposed to the browser                       |
+| `ERP_TENANT`           | server | Buntalk business (tenant) ID in the ERP                                       |
+| `ERP_TIMEOUT_MS`       | server | Optional ERP request time limit (default 8000)                                |
+| `ERP_WEBHOOK_SECRET`   | server | Secret the ERP signs its webhooks with (HMAC-SHA256)                          |
+| `AUTH_SECRET`          | server | Signs sign-in session cookies (32+ random characters; required outside local) |
+| `AUTH_URL`             | server | Optional site origin for sign-in, if not `NEXT_PUBLIC_SITE_URL`               |
 
 Env vars are validated with Zod:
 
@@ -675,6 +677,31 @@ Each order's fulfilment status is kept in step with the ERP (`lib/orders/sync.ts
 - **Payment status:** "pending" until payments exist (BUN-203).
 - **Checkout form:** the form that calls this API is BUN-201.
 
+## Sign-in and sessions
+
+Sign-in is built on [Better Auth](https://www.better-auth.com) (BUN-186). Every sign-in method plugs into one setup, in `lib/auth/server.ts`: email and password now, Google (BUN-189), Apple (BUN-190) and phone codes (BUN-191) later. Pages, routes and features only use `lib/auth` (`getSession`, `getUserId`, `getCustomerId`, `requireSession`); the browser uses `lib/auth/client.ts` through `features/auth`.
+
+- **Storage:** Better Auth's tables in our Postgres, through Drizzle (`auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`; migration `0006_auth`).
+  - One user can have several sign-in methods (`auth_accounts`: `credential` for email and password, later `google`, `apple`, phone). Methods with the same verified email are linked to one user.
+  - `auth_users.customer_id` links the user to their storefront customer (and through it to the ERP customer, see "Customers"). Registration sets it (BUN-187/192); a customer can't set it in a request.
+- **Session cookie:** `buntalk.session_token` (`__Secure-` in front on https). httpOnly, SameSite=Lax, Secure on https, signed with `AUTH_SECRET`. It holds only a random token: every check reads the session from the database on the server, so there is no cookie cache to go stale.
+- **Expiry and refresh:** a session lasts 30 days and is extended (at most once a day) while the customer keeps using the site.
+- **Signed-in state** is checked on the server on every request (`getSession()`, once per request). The header asks `GET /api/session` (`{ signedIn, firstName }`) because it's part of cached pages.
+- **Protected pages:** `/account/*`.
+  - `proxy.ts` sends a visitor without a session cookie to `/sign-in?next={page}`.
+  - The pages check the session itself (`AccountGate` → `requireSession`), so an expired or signed-out cookie goes to sign-in too.
+  - After signing in, the customer comes back to `next`. Only paths on this site are followed (`safeNext`).
+  - Checkout isn't protected, because guests can check out (BUN-197). It offers **Sign in** in the dialog and stays on checkout.
+- **Sign-in and sign-up:** `/sign-in` and `/sign-up` pages, and the same form in a dialog (the header's account menu, checkout). `features/auth/AuthForm.tsx` shows a plain message for each error ("That email and password don't match").
+  - Email and password is the first method: at least 8 characters, hashed with scrypt. Email verification, password reset and the customer record come with BUN-187.
+- **After signing in:** the guest cart joins the account's saved cart on the server (BUN-178, a Better Auth hook), and the browser loads it. Saved carts now belong to the signed-in user (`getUserId()`); customer prices use the ERP customer id (`getCustomerId()`), once the user's customer is linked to the ERP.
+- **Signing out** (account menu, mobile menu, account page) deletes the session in the database, so the cookie stops working at once. This browser forgets the account's cart (it stays saved on the account) and loads the home page fresh. **Sign out on all devices** (account page) ends every session of the account.
+- **Other tabs** follow sign-in and sign-out at once (`BroadcastChannel`, `features/auth/AuthSync.tsx`): they reload with the new session, and account pages go to sign-in.
+- **Settings:** `AUTH_SECRET` (at least 32 random characters, required outside local development; local development uses a built-in development secret) and optional `AUTH_URL` (else `NEXT_PUBLIC_SITE_URL`). Better Auth's telemetry is off.
+- **Caching:** `/sign-in`, `/sign-up` and `/api/auth/*` are sent with `Cache-Control: private, no-store`, like the account pages.
+- **Rate limits:** Better Auth's built-in limits on sign-in endpoints apply in production. Stronger protection is BUN-229.
+- **Tests:** `lib/auth/auth.integration.test.ts` runs Better Auth on an in-memory Postgres: sign-up, the cookie's settings, a wrong password, sign-out, sign-out on all devices, a tampered cookie, and that a customer link can't be set from a request.
+
 ## Customers
 
 Every storefront customer has exactly one linked ERP customer (BUN-166). The code is in `lib/customers/`.
@@ -963,8 +990,8 @@ The cart is kept in two places that stay in step:
 - **In the browser** (`features/cart/store.ts`, Zustand + localStorage), so the cart count and cart page show instantly.
 - **On the server** (`carts` table, `lib/cart/persist.server.ts`), so the cart survives a cleared browser and, once sign-in exists, follows the customer to other devices.
   - **Guest:** found by a random token in the httpOnly `buntalk_cart` cookie (only its hash is stored). Kept 60 days after the last change; the scheduled job (`/api/cron`) deletes older guest carts.
-  - **Signed-in customer:** saved against the customer once sign-in exists (`getCustomerId()`, BUN-186).
-- **Sign-in (BUN-178):** the guest cart is merged into the customer's saved cart, so nothing added before signing in is lost (`mergeCartOnSignIn()` in `lib/cart/signin.server.ts`, called by the sign-in flow, BUN-186). In one database transaction, the same product, size and design becomes one line with the quantities added (at most 99; the ERP's own limits are applied by the next cart check, with a notice), other lines are added after the customer's own, the guest cart is deleted and its cookie removed. It's safe to run twice. A cart can have at most 50 lines; past that, the last guest lines are left out.
+  - **Signed-in customer:** saved against the signed-in user (`getUserId()`, BUN-186), so it follows them to other devices.
+- **Sign-in (BUN-178):** the guest cart is merged into the customer's saved cart, so nothing added before signing in is lost (`mergeCartOnSignIn()` in `lib/cart/signin.server.ts`, called by the sign-in framework after every sign-in or sign-up, BUN-186). In one database transaction, the same product, size and design becomes one line with the quantities added (at most 99; the ERP's own limits are applied by the next cart check, with a notice), other lines are added after the customer's own, the guest cart is deleted and its cookie removed. It's safe to run twice. A cart can have at most 50 lines; past that, the last guest lines are left out.
 - **Keeping them in step** (`features/cart/CartSync.tsx`, in the app providers): every change is saved shortly after it's made (`PUT /api/cart`). On page load and when the tab comes back into view, the saved cart is loaded (`GET /api/cart`). A change made offline stays marked and is sent later. Other open tabs update straight away.
   - Every save says which saved version it started from (`baseUpdatedAt`). If the saved cart changed in the meantime (the guest cart was merged at sign-in, or another device or tab changed it), the server refuses the save with **409** and the current saved cart. The browser then keeps the saved cart, adds the lines only it has (a line in both keeps the saved quantity, so nothing is counted twice) and saves that (`unionCarts()` in `lib/cart/merge.ts`). Nothing is overwritten.
 
@@ -1020,7 +1047,7 @@ The storefront never calculates a price. It shows and charges exactly what the E
 - **Customer prices:** for a signed-in customer, the server asks the ERP for that customer's own prices (`?customer=`, from their customer group's price level). They are never cached or shown to anyone else.
   - Cart and checkout use them through `priceCart()`.
   - Cards and the product page show them as **"Your price"** (BUN-174): `CustomerPricesProvider` asks `GET /api/prices?slugs=…` once per grid, only when the visitor is signed in. That route reads the ERP live and returns nothing for anyone else. The cached pages themselves keep the online price.
-  - All of this switches on once sign-in exists (`getCustomerId()`, BUN-186), and needs ERP ticket BUN-247.
+  - This works for a signed-in customer whose account is linked to an ERP customer (`getCustomerId()`, BUN-186 and BUN-166), and needs ERP ticket BUN-247.
 - **Price changes:** the ERP calls the revalidate webhook for the product, and pages update. The cart picks up a new price straight away, because it reads live.
 - **Placing an order** (BUN-164 / BUN-201) must call `priceCart()` again on the server, and the ERP re-prices the order itself (BUN-244).
 
