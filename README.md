@@ -559,6 +559,16 @@ These endpoints are placeholders in `lib/erp/catalog.ts`:
 - Offers: `catalog/products?on_offer=true`. Real offer prices come from the scheme engine (BUN-163, BUN-174).
 - Banner and category images: add the ERP image host to `images.remotePatterns` in `next.config.ts`, then remove `unoptimized` from the banner and category `<Image>`s to get resized, modern-format images.
 
+## Cake Studio (BUN-179)
+
+Cake Studio comes entirely from the ERP's Cake Studio module (ERP ticket BUN-260; contract in `docs/erp-api-contract.md`):
+
+- **Menu** (`getCakeStudioMenu()` in `lib/erp/cake-studio.ts`): sizes with serving sizes, tiers and the price in each shape, shapes, sponges, fillings, frosting colours, finishes, drips, toppings, writing colours, lettering, extras, occasions with suggested messages, favourites to start from, and the studio rules (open or closed, message length, deck prices). Cached with the `catalog` profile and the `cake-studio` tag; the ERP's `{ "type": "cake_studio" }` webhook refreshes it.
+- **Prices:** the storefront never prices a cake. Every design is sent to the ERP, which checks it against the menu and prices it (`quoteCakeDesign()`). The API (`POST /api/cake-studio/quote`) passes the ERP's messages per field ("Choose a sponge."). Prices sent by the browser are ignored.
+- **Saved designs:** `POST /api/cake-studio/designs` saves a design in the ERP and returns its id; `GET /api/cake-studio/designs/{id}` (or `/cake-studio?design={id}`) loads it, priced again with today's prices. A saved design never changes; unknown ids are 404.
+- **The `/cake-studio` page** shows the whole menu with today's prices (sizes with "from" prices, serving sizes and the earliest ready date; options with colour swatches and prices; occasions; favourites), whether the studio is open, and a saved design when the URL has `?design=`. The 3D designer is BUN-180 to BUN-182 and adding a design to the cart is BUN-184; the 3D preview will be drawn from the menu data (shape model, tier sizes, colours and styles), as the ERP's own Cake Studio does.
+- **Mock ERP:** `scripts/mock-erp-cake-studio.mjs` has the ERP's sample menu and follows its pricing, checks and summary. `POST /__mock/cake-studio` with `{"options":[{"id":8,"price":500}]}` changes a price, like staff would.
+
 ## Orders
 
 The ERP is the system of record for orders. The storefront also keeps its own copy of every order, in its own PostgreSQL database, so that:

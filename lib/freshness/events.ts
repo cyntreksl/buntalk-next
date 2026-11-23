@@ -25,6 +25,8 @@ export const changeEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("banners") }),
   /** A scheme / offer was added, changed or ended. */
   z.object({ type: z.literal("schemes") }),
+  /** Cake Studio menu, prices or rules changed (BUN-179). */
+  z.object({ type: z.literal("cake_studio") }),
   /** Bulk changes (imports, price lists): refresh the whole catalog. */
   z.object({ type: z.literal("all") }),
 ]);
@@ -57,6 +59,8 @@ export function tagsForEvent(event: ChangeEvent): string[] {
       return [cacheTags.banners, cacheTags.home];
     case "schemes":
       return [cacheTags.schemes];
+    case "cake_studio":
+      return [cacheTags.cakeStudio];
     case "all":
       return [cacheTags.catalog];
   }

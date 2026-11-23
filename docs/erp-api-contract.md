@@ -191,6 +191,24 @@ Response `data`:
 
 The same evaluation must be used when the order is placed (BUN-244), so the cart and the order always match.
 
+### Cake Studio (BUN-179; ERP side: BUN-260)
+
+The ERP already has Cake Studio for its own page (`DescribeCakeStudioMenu`, `NormaliseCakeDesign`, `PriceCakeDesign`, `DescribeCakeDesign`). These storefront endpoints expose the same actions (ticket BUN-260):
+
+| Method | Path                                    | Purpose                                                                                                     | Storefront function                               |
+| ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| GET    | `/cake-studio/menu[?customer=]`         | The menu as `DescribeCakeStudioMenu` returns it (B2B prices with `customer`)                                | `getCakeStudioMenu()` (cached, tag `cake-studio`) |
+| POST   | `/cake-studio/quote`                    | `{ design, customer? }` → checked design, price lines, total, summary, earliest date. 422 with field errors | `quoteCakeDesign()` (live)                        |
+| POST   | `/cake-studio/designs`                  | Save a design (Idempotency-Key) → 201 with `id` (uuid) and the quote                                        | `saveCakeDesign()`                                |
+| GET    | `/cake-studio/designs/{id}[?customer=]` | A saved design, **priced again now**. 404 unknown; 422 if an option was removed                             | `getCakeDesign()` (live)                          |
+
+- **Menu** (`data`): `sizes[]` (`id`, `name`, `weight_kg`, `tiers[{width,height}]`, `serves_min`, `serves_max`, `shape_prices{shapeId: price}`, `earliest` date), `shapes[]` (`id`, `name`, `model`), `options{kind: [...]}` for the kinds `sponge`, `filling`, `frosting`, `finish`, `drip`, `topping`, `writing_colour`, `lettering`, `extra` (`id`, `code`, `name`, `price`, `colour`, `layer_colours`, `max_count`, `needs_drip`, `style`), `occasions[]` (`id`, `name`, `messages[]`), `favourites[]` (`id`, `name`, `occasion_ids`, `config`), `rules` (`is_open`, `message_max`, `photo_max_kb`, `deck_prices`, `deck_height_min_cm`, `deck_height_max_cm`, `height_cm_price`, `welcome`). Money is a decimal string.
+- **Design** (the picks, as `CakeDesignRequest`): `size_id`, `tier_count`, `deck_heights[]`, `shape_id`, `sponge_id`, `filling_id`, `frosting_id`, `finish_id`, `drip_id`, `topping_ids[]`, `candle_count`, `extras[]` (codes), `topper_number`, `message`, `lettering_id`, `writing_colour_id`, `occasion_id`.
+- **Quote** (`data`): `design` (normalised), `lines[{label, price}]`, `total`, `summary[{label, value}]`, `earliest_date`. Saved designs add `id` and `created_at`.
+- **Prices:** the storefront never calculates a cake price; every price it shows comes from `quote` or a saved design (priced again on load).
+- **3D:** the 3D preview is drawn from this data, as the ERP's `cake-scene.tsx` does: shape `model`, size `tiers`, option `colour` / `layer_colours` / `style`, `needs_drip`. There are no 3D asset files; if model files are added later, add an `asset_url` per option.
+- **Changes:** when the Cake Studio setup changes, the ERP calls the revalidate webhook with `{ "type": "cake_studio" }`.
+
 ### Orders (BUN-164; ERP side: BUN-244)
 
 The storefront saves every order first, then sends it with two idempotent writes. Each write's `Idempotency-Key` is derived from the order, and the same key is used on every retry.
@@ -254,6 +272,7 @@ When catalog data changes, the ERP sends a signed `POST {STOREFRONT_URL}/api/rev
 | `{ "type": "home" }`                                         | Featured list                                                                                    |
 | `{ "type": "banners" }`                                      | Home banners                                                                                     |
 | `{ "type": "schemes" }`                                      | Any scheme added, changed or ended                                                               |
+| `{ "type": "cake_studio" }`                                  | Cake Studio menu, prices or rules changed (BUN-179)                                              |
 | `{ "type": "all" }`                                          | Bulk imports, price-list changes                                                                 |
 | `{ "events": [ … ] }`                                        | Several of the above at once (up to 200), e.g. a burst collapsed by the job                      |
 
@@ -342,6 +361,7 @@ Every ERP-side gap has a ticket under epic **BUN-232** "ERP Storefront API (ERP 
 | BUN-257 | Product page details: short description, photo per size, weight, servings | BUN-171                   |
 | BUN-258 | Product tags for filters (occasion and other tag groups)                  | BUN-173                   |
 | BUN-259 | Online order quantity limits per product and size (min, max, step)        | BUN-175                   |
+| BUN-260 | Cake Studio storefront API: menu, design quote, saved designs by ID       | BUN-179, BUN-180–185      |
 
 ## 6. Open questions for the ERP team
 
