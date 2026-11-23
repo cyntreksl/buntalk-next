@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button, Card, Spinner } from "@/components/ui";
 import {
   applyChange,
@@ -18,7 +18,8 @@ import {
 } from "@/lib/cake-studio/design";
 import type { CakeDesign, CakeQuote } from "@/lib/erp";
 import { cx, formatPrice } from "@/lib/utils";
-import { CakePreview } from "./CakePreview";
+import { Cake3D, shrinkPng } from "./Cake3D";
+import type { CakeGrab, CakeView } from "./scene/CakeScene";
 
 const LKR = (n: number) => formatPrice(n, "LKR");
 const impact = (n: number | null | undefined) =>
@@ -190,10 +191,11 @@ function Step({
  * - Choices the ERP wouldn't accept are disabled with the reason (a size not
  *   made in that shape, the drip only with a drip finish, the candle limit,
  *   the message length), and what depends on a change is tidied up.
- * - Every change redraws the preview and asks the ERP for the price (lines and
- *   total); the ERP's own messages show if it refuses something.
+ * - Every change redraws the 3D preview (BUN-182) and asks the ERP for the
+ *   price (lines and total); the ERP's own messages show if it refuses something.
+ *   Tapping a part of the cake opens its step.
  * - Undo (last 30 changes) and Start over; Save gives a design code
- *   (adding it to the cart is BUN-184).
+ *   (adding it to the cart is BUN-184), with a picture of the 3D cake.
  * - On phones the steps stack and the price stays in a bar at the bottom.
  */
 export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesign }) {
@@ -202,7 +204,13 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
   const [openStep, setOpenStep] = useState(1);
   const [quote, setQuote] = useState<QuoteState>({ status: "loading" });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<{ id: string; total: number } | null>(null);
+  const [saved, setSaved] = useState<{ id: string; total: number; previewUrl?: string } | null>(
+    null,
+  );
+  const grab = useRef<CakeGrab | null>(null);
+  const onGrab = useCallback((g: CakeGrab | null) => {
+    grab.current = g;
+  }, []);
 
   const change = (patch: Partial<CakeDesign>) => {
     setHistory((h) => pushHistory(h, design));
@@ -261,16 +269,29 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
   const erpErrors = quote.status === "invalid" ? quote.fieldErrors : {};
   const errorFor = (field: string) => problems[field] ?? erpErrors[field];
 
+  /** A picture of the 3D cake for the saved design; none if it can't be taken. */
+  async function previewPicture(): Promise<string | undefined> {
+    try {
+      const png = grab.current?.();
+      if (!png) return undefined;
+      const small = await shrinkPng(png);
+      return small.length < 1_900_000 ? small : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async function save() {
     setSaving(true);
     try {
+      const preview = await previewPicture();
       const res = await fetch("/api/cake-studio/designs", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({ design }),
+        body: JSON.stringify({ design, preview }),
       });
       const body = await res.json();
-      if (res.ok) setSaved({ id: body.id, total: body.total });
+      if (res.ok) setSaved({ id: body.id, total: body.total, previewUrl: body.previewUrl });
       else
         setQuote({ status: "invalid", message: body.message, fieldErrors: body.fieldErrors ?? {} });
     } finally {
@@ -623,6 +644,11 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
     },
   ];
 
+  // The 3D camera follows the open step: the slice for flavours, the top for the message.
+  const autoView: CakeView = openStep === 4 ? "inside" : openStep === 7 ? "top" : "front";
+  // A tapped part of the cake (PART_STEPS) opens its step: stand → size, slice → flavour, …
+  const onPart = useCallback((part: number) => setOpenStep([2, 4, 5, 6, 7][part] ?? 1), []);
+
   const total = quote.status === "ready" ? quote.quote.total : null;
   const priceText = quote.status === "loading" ? "Pricing…" : total !== null ? LKR(total) : "—";
 
@@ -630,10 +656,7 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
     <div className="grid gap-8 pb-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:pb-0">
       <div className="flex flex-col gap-4 lg:sticky lg:top-(--sticky-offset) lg:self-start">
         <Card className="bg-accent-soft border-0 p-4">
-          <CakePreview menu={menu} design={design} />
-          <p className="text-caption text-muted-foreground text-center">
-            Preview. The 3D view is coming soon.
-          </p>
+          <Cake3D menu={menu} design={design} autoView={autoView} onPart={onPart} onGrab={onGrab} />
         </Card>
         <Card
           className="flex flex-col gap-3"
@@ -694,16 +717,28 @@ export function CakeDesigner({ menu, initial }: { menu: Menu; initial: CakeDesig
           {saved && (
             <p
               role="status"
-              className="bg-success-soft text-success text-body-sm rounded-md px-3 py-2 font-semibold"
+              className="bg-success-soft text-success text-body-sm flex items-center gap-3 rounded-md px-3 py-2 font-semibold"
             >
-              Saved ({LKR(saved.total)}).{" "}
-              <Link
-                href={`/cake-studio?design=${encodeURIComponent(saved.id)}`}
-                className="underline"
-              >
-                Your design code is {saved.id}
-              </Link>
-              . Adding it to the cart is coming soon.
+              {saved.previewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- the ERP's picture of this design
+                <img
+                  src={saved.previewUrl}
+                  alt=""
+                  width={56}
+                  height={56}
+                  className="bg-surface size-14 shrink-0 rounded-md object-contain"
+                />
+              )}
+              <span>
+                Saved ({LKR(saved.total)}).{" "}
+                <Link
+                  href={`/cake-studio?design=${encodeURIComponent(saved.id)}`}
+                  className="underline"
+                >
+                  Your design code is {saved.id}
+                </Link>
+                . Adding it to the cart is coming soon.
+              </span>
             </p>
           )}
         </Card>

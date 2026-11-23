@@ -16,8 +16,8 @@ const H = 300;
 /**
  * A simple drawn preview of the design (BUN-181): the decks stacked, in the
  * frosting colour, with a slice of the sponge colours, the drip, toppings,
- * candles and the message. Every option change redraws it. The live 3D
- * preview replaces it in BUN-182.
+ * candles and the message. Every option change redraws it. Since BUN-182 it
+ * shows while the 3D preview loads, and instead of it without WebGL.
  */
 export function CakePreview({ menu, design }: { menu: Menu; design: CakeDesign }) {
   const size = menu.sizes.find((s) => s.id === design.size_id);

@@ -107,6 +107,17 @@ describe("saved designs", () => {
     expect(loaded.total).toBe(4850);
   });
 
+  it("sends the design's picture and gets back where the ERP keeps it", async () => {
+    const plain = await saveCakeDesign(design(), { idempotencyKey: "k3" });
+    expect(plain.previewUrl).toBeUndefined();
+    const saved = await saveCakeDesign(design(), {
+      idempotencyKey: "k4",
+      previewPng: "iVBORw0KGgo=",
+    });
+    expect(saved.previewUrl).toMatch(new RegExp(`/images/cake-designs/${saved.id}\.png$`));
+    expect((await getCakeDesign(saved.id)).previewUrl).toBe(saved.previewUrl);
+  });
+
   it("prices a saved design again with today's prices", async () => {
     const saved = await saveCakeDesign(design(), { idempotencyKey: "k2" });
     patchCakeStudio(studio, { options: [{ id: option("sponge", "Chocolate"), price: 500 }] });
